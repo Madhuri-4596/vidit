@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  projects      Project[]
+  voiceProfiles VoiceProfile[]
+  brandKits     BrandKit[]
+  socialAccounts SocialAccount[]
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  thumbnail   String?
+  duration    Float    @default(0)
+  fps         Int      @default(24)
+  width       Int      @default(1920)
+  height      Int      @default(1080)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  timeline    Timeline?
+  assets      Asset[]
+  exports     Export[]
+
+  @@index([userId])
+}
+
+model Timeline {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tracks    Track[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Track {
+  id         String   @id @default(cuid())
+  timelineId String
+  timeline   Timeline @relation(fields: [timelineId], references: [id], onDelete: Cascade)
+  order      Int
+  type       String   // "video", "audio", "text", "overlay"
+  locked     Boolean  @default(false)
+  visible    Boolean  @default(true)
+  clips      Clip[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([timelineId])
+}
+
+model Clip {
+  id        String   @id @default(cuid())
+  trackId   String
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  assetId   String?
+  asset     Asset?   @relation(fields: [assetId], references: [id])
+  startTime Float    // in seconds
+  endTime   Float    // in seconds
+  duration  Float
+  trimStart Float    @default(0)
+  trimEnd   Float    @default(0)
+  position  Json?    // {x, y, width, height, rotation, scale}
+  effects   Json?    // array of effects applied
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([trackId])
+  @@index([assetId])
+}
+
+model Asset {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  type        String   // "video", "audio", "image", "text"
+  url         String
+  thumbnail   String?
+  duration    Float?
+  size        Int?     // in bytes
+  metadata    Json?    // codec, bitrate, resolution, etc.
+  clips       Clip[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+model VoiceProfile {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  voiceId     String   // External voice ID from ElevenLabs or similar
+  sampleUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model BrandKit {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  colors      Json     // array of color codes
+  fonts       Json     // array of font configurations
+  logos       Json     // array of logo URLs
+  templates   Json?    // custom templates
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Export {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status      String   // "pending", "processing", "completed", "failed"
+  format      String   // "mp4", "mov", "webm"
+  quality     String   // "1080p", "720p", "4k"
+  url         String?
+  error       String?
+  progress    Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model SocialAccount {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform     String   // "youtube", "instagram", "tiktok", "facebook", "linkedin", "x"
+  username     String
+  accessToken  String
+  refreshToken String?
+  expiresAt    DateTime?
+  metadata     Json?
+  posts        Post[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@unique([userId, platform])
+}
+
+model Post {
+  id              String        @id @default(cuid())
+  socialAccountId String
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  title           String?
+  description     String?
+  videoUrl        String
+  thumbnail       String?
+  scheduledFor    DateTime?
+  publishedAt     DateTime?
+  status          String        // "draft", "scheduled", "published", "failed"
+  platformPostId  String?       // ID from the social platform
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([socialAccountId])
+  @@index([status])
+  @@index([scheduledFor])
+}
+
+model ChatSession {
+  id        String    @id @default(cuid())
+  userId    String?
+  messages  Json      // array of chat messages
+  projectId String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+}
