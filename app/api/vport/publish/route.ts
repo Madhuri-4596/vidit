@@ -3,6 +3,13 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
+    if (!prisma) {
+      return NextResponse.json(
+        { error: "Database not configured" },
+        { status: 503 }
+      );
+    }
+
     const { platforms, title, description, videoUrl, scheduledFor } = await request.json();
 
     if (!platforms || platforms.length === 0) {
