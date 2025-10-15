@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "DATABASE_URL=\"postgresql://dummy:dummy@localhost:5432/dummy\" prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate",
+    "postinstall": "DATABASE_URL=\"postgresql://dummy:dummy@localhost:5432/dummy\" prisma generate || true",
     "db:push": "prisma db push",
     "db:studio": "prisma studio"
   },
