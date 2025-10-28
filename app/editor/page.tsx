@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { VaiaChat } from "@/components/vaia/chat";
 import { PlaybackControls } from "@/components/vitor/playback-controls";
 import { VideoPreview } from "@/components/vitor/video-preview";
 import { MediaLibrary } from "@/components/vitor/media-library";
 import { SocialPublishing } from "@/components/vport/social-publishing";
 import { TimelineWrapper } from "@/components/vitor/timeline-wrapper";
+import { useEditorStore } from "@/lib/store";
 import {
   Sparkles,
   Video,
@@ -25,6 +26,22 @@ export default function EditorPage() {
   const [leftPanel, setLeftPanel] = useState<"media" | "effects" | "vaia">("media");
   const [rightPanel, setRightPanel] = useState<"vaia" | "publish">("vaia");
 
+  const { currentProject, setCurrentProject } = useEditorStore();
+
+  // Initialize default project if none exists
+  useEffect(() => {
+    if (!currentProject) {
+      setCurrentProject({
+        id: crypto.randomUUID(),
+        name: "Untitled Project",
+        duration: 60,
+        fps: 30,
+        width: 1920,
+        height: 1080,
+      });
+    }
+  }, []);
+
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white">
       {/* Top Bar */}
@@ -33,7 +50,7 @@ export default function EditorPage() {
           <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">
             VIDIT
           </h1>
-          <span className="text-sm text-gray-400">Untitled Project</span>
+          <span className="text-sm text-gray-400">{currentProject?.name || "Untitled Project"}</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -86,17 +103,57 @@ export default function EditorPage() {
                 {leftPanel === "effects" && (
                   <div className="p-4">
                     <h3 className="text-sm font-semibold mb-3">Effects & Filters</h3>
+                    <p className="text-xs text-gray-500 mb-4">
+                      Select a clip on the timeline, then click an effect to apply it
+                    </p>
                     <div className="grid grid-cols-2 gap-2">
-                      {["Blur", "Brightness", "Contrast", "Saturation", "Sepia", "Grayscale"].map(
-                        (effect) => (
+                      {[
+                        { name: "Blur", icon: "🌫️" },
+                        { name: "Brightness", icon: "☀️" },
+                        { name: "Contrast", icon: "🌓" },
+                        { name: "Saturation", icon: "🎨" },
+                        { name: "Sepia", icon: "📜" },
+                        { name: "Grayscale", icon: "⬜" },
+                      ].map((effect) => (
+                        <button
+                          key={effect.name}
+                          className="p-3 bg-gray-800 hover:bg-purple-700 hover:ring-2 hover:ring-purple-500 rounded text-sm transition-all group"
+                          onClick={() => {
+                            // Effect application would go here
+                            alert(`Effect "${effect.name}" will be applied to selected clip when implemented`);
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>{effect.icon}</span>
+                            <span>{effect.name}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="mt-6">
+                      <h3 className="text-sm font-semibold mb-3">Transitions</h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { name: "Fade", icon: "⚫" },
+                          { name: "Wipe", icon: "➡️" },
+                          { name: "Slide", icon: "⬅️" },
+                          { name: "Zoom", icon: "🔍" },
+                        ].map((transition) => (
                           <button
-                            key={effect}
-                            className="p-3 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors"
+                            key={transition.name}
+                            className="p-3 bg-gray-800 hover:bg-purple-700 hover:ring-2 hover:ring-purple-500 rounded text-sm transition-all"
+                            onClick={() => {
+                              alert(`Transition "${transition.name}" will be applied when implemented`);
+                            }}
                           >
-                            {effect}
+                            <div className="flex items-center gap-2">
+                              <span>{transition.icon}</span>
+                              <span>{transition.name}</span>
+                            </div>
                           </button>
-                        )
-                      )}
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}

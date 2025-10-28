@@ -18,9 +18,18 @@ export function VideoPreview() {
     if (!videoElement) {
       videoElement = document.createElement('video');
       videoElement.src = videoUrl;
-      videoElement.crossOrigin = 'anonymous';
+      // Only set crossOrigin for non-blob URLs
+      if (!videoUrl.startsWith('blob:')) {
+        videoElement.crossOrigin = 'anonymous';
+      }
       videoElement.muted = true;
       videoElement.preload = 'auto';
+
+      // Add error handler
+      videoElement.addEventListener('error', (e) => {
+        console.error('Video element error:', e, 'URL:', videoUrl);
+      });
+
       videoElementsRef.current.set(clipId, videoElement);
     }
 
@@ -34,16 +43,23 @@ export function VideoPreview() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    let isCancelled = false;
+
     const render = async () => {
+      if (isCancelled) return;
+
       // Clear canvas
       ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, width, height);
 
-      // Render video clips at current time
-      for (const track of tracks) {
-        if (!track.visible) continue;
+      // Render video clips at current time - process in reverse order so top tracks render last
+      for (let i = 0; i < tracks.length; i++) {
+        const track = tracks[i];
+        if (!track.visible || isCancelled) continue;
 
         for (const clip of track.clips as any[]) {
+          if (isCancelled) break;
+
           if (currentTime >= clip.startTime && currentTime <= clip.endTime) {
             // Calculate the time within the clip
             const clipTime = currentTime - clip.startTime + (clip.trimStart || 0);
@@ -53,57 +69,111 @@ export function VideoPreview() {
               // For images, create an image element and draw it
               if (clip.asset.type === "image" && clip.asset.url) {
                 const img = new Image();
-                img.crossOrigin = 'anonymous';
-                await new Promise<void>((resolve) => {
-                  img.onload = () => {
-                    // Calculate aspect ratio fit
-                    const scale = Math.min(width / img.width, height / img.height);
-                    const scaledWidth = img.width * scale;
-                    const scaledHeight = img.height * scale;
-                    const x = (width - scaledWidth) / 2;
-                    const y = (height - scaledHeight) / 2;
+                // Only set crossOrigin for non-blob URLs
+                if (!clip.asset.url.startsWith('blob:')) {
+                  img.crossOrigin = 'anonymous';
+                }
 
-                    ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
+                await new Promise<void>((resolve) => {
+                  const timeout = setTimeout(() => {
+                    console.warn('Image load timeout:', clip.asset.name);
+                    resolve();
+                  }, 5000);
+
+                  img.onload = () => {
+                    clearTimeout(timeout);
+                    if (isCancelled) {
+                      resolve();
+                      return;
+                    }
+
+                    try {
+                      // Calculate aspect ratio fit
+                      const scale = Math.min(width / img.width, height / img.height);
+                      const scaledWidth = img.width * scale;
+                      const scaledHeight = img.height * scale;
+                      const x = (width - scaledWidth) / 2;
+                      const y = (height - scaledHeight) / 2;
+
+                      ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
+                    } catch (err) {
+                      console.error('Error drawing image:', err);
+                    }
                     resolve();
                   };
-                  img.onerror = () => resolve();
+                  img.onerror = (err) => {
+                    clearTimeout(timeout);
+                    console.error('Image load error:', err);
+                    resolve();
+                  };
                   img.src = clip.asset.url;
                 });
               } else if (clip.asset.type === "video" && clip.asset.url) {
                 // For videos, use video element
                 const videoElement = getVideoElement(clip.id, clip.asset.url);
 
-                // Set video time to the calculated clip time
-                if (Math.abs(videoElement.currentTime - clipTime) > 0.1) {
-                  videoElement.currentTime = clipTime;
-                }
+                try {
+                  // Set video time to the calculated clip time with better precision
+                  if (Math.abs(videoElement.currentTime - clipTime) > 0.033) { // ~1 frame at 30fps
+                    videoElement.currentTime = clipTime;
 
-                // Wait for video to be ready
-                if (videoElement.readyState >= 2) {
-                  // Calculate aspect ratio fit
-                  const scale = Math.min(width / videoElement.videoWidth, height / videoElement.videoHeight);
-                  const scaledWidth = videoElement.videoWidth * scale;
-                  const scaledHeight = videoElement.videoHeight * scale;
-                  const x = (width - scaledWidth) / 2;
-                  const y = (height - scaledHeight) / 2;
+                    // Wait for seek to complete
+                    await new Promise<void>((resolve) => {
+                      const timeout = setTimeout(resolve, 100); // Don't wait forever
+                      const handleSeeked = () => {
+                        clearTimeout(timeout);
+                        videoElement.removeEventListener('seeked', handleSeeked);
+                        resolve();
+                      };
+                      videoElement.addEventListener('seeked', handleSeeked);
+                    });
+                  }
 
-                  ctx.drawImage(videoElement, x, y, scaledWidth, scaledHeight);
-                } else {
-                  // Show loading state
-                  ctx.fillStyle = "#3B82F6";
-                  ctx.fillRect(50, 50, 200, 100);
-                  ctx.fillStyle = "#FFFFFF";
-                  ctx.font = "16px sans-serif";
-                  ctx.fillText("Loading video...", 60, 100);
+                  if (isCancelled) continue;
+
+                  // Wait for video to be ready
+                  if (videoElement.readyState >= 2) {
+                    // Calculate aspect ratio fit
+                    const scale = Math.min(width / videoElement.videoWidth, height / videoElement.videoHeight);
+                    const scaledWidth = videoElement.videoWidth * scale;
+                    const scaledHeight = videoElement.videoHeight * scale;
+                    const x = (width - scaledWidth) / 2;
+                    const y = (height - scaledHeight) / 2;
+
+                    ctx.drawImage(videoElement, x, y, scaledWidth, scaledHeight);
+                  } else {
+                    // Show loading state
+                    ctx.fillStyle = "#3B82F6";
+                    const rectWidth = Math.min(300, width - 100);
+                    const rectHeight = 80;
+                    const rectX = (width - rectWidth) / 2;
+                    const rectY = (height - rectHeight) / 2;
+
+                    ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
+                    ctx.fillStyle = "#FFFFFF";
+                    ctx.font = "16px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText("Loading video...", width / 2, height / 2);
+                    ctx.textAlign = "left";
+                  }
+                } catch (err) {
+                  console.error('Error rendering video:', err);
                 }
               } else {
                 // Placeholder for audio
                 ctx.fillStyle = track.type === "audio" ? "#10B981" : "#F59E0B";
-                ctx.fillRect(50, 50, 200, 100);
+                const rectWidth = Math.min(250, width - 100);
+                const rectHeight = 60;
+                const rectX = (width - rectWidth) / 2;
+                const rectY = (height - rectHeight) / 2;
+
+                ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
 
                 ctx.fillStyle = "#FFFFFF";
                 ctx.font = "16px sans-serif";
-                ctx.fillText(clip.asset.name || `${track.type} clip`, 60, 100);
+                ctx.textAlign = "center";
+                ctx.fillText(clip.asset.name || `${track.type} clip`, width / 2, height / 2);
+                ctx.textAlign = "left";
               }
             } else {
               // Fallback placeholder
@@ -118,7 +188,11 @@ export function VideoPreview() {
       }
     };
 
-    render();
+    render().catch(err => console.error('Render error:', err));
+
+    return () => {
+      isCancelled = true;
+    };
   }, [currentTime, tracks, width, height]);
 
   // Cleanup video elements that are no longer in use
