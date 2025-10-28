@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useEditorStore } from "@/lib/store";
 import { Upload, Video, Music, Image as ImageIcon, Type, Search } from "lucide-react";
 
@@ -8,6 +8,44 @@ export function MediaLibrary() {
   const { assets, addAsset } = useEditorStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "video" | "audio" | "image">("all");
+
+  // Add demo assets on first load
+  useEffect(() => {
+    if (assets.length === 0) {
+      // Add some demo/placeholder assets
+      const demoAssets = [
+        {
+          id: crypto.randomUUID(),
+          name: "Sample Image 1",
+          type: "image" as const,
+          url: "https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=800&h=600&fit=crop",
+          thumbnail: "https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=200&h=150&fit=crop",
+          size: 150000,
+          duration: 5,
+        },
+        {
+          id: crypto.randomUUID(),
+          name: "Sample Image 2",
+          type: "image" as const,
+          url: "https://images.unsplash.com/photo-1682687221038-404cb8830901?w=800&h=600&fit=crop",
+          thumbnail: "https://images.unsplash.com/photo-1682687221038-404cb8830901?w=200&h=150&fit=crop",
+          size: 180000,
+          duration: 5,
+        },
+        {
+          id: crypto.randomUUID(),
+          name: "Sample Image 3",
+          type: "image" as const,
+          url: "https://images.unsplash.com/photo-1682687220063-4742bd7fd538?w=800&h=600&fit=crop",
+          thumbnail: "https://images.unsplash.com/photo-1682687220063-4742bd7fd538?w=200&h=150&fit=crop",
+          size: 160000,
+          duration: 5,
+        },
+      ];
+
+      demoAssets.forEach((asset) => addAsset(asset));
+    }
+  }, []);
 
   const filteredAssets = assets.filter((asset) => {
     const matchesSearch = asset.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -31,14 +69,60 @@ export function MediaLibrary() {
         ? "image"
         : "video";
 
+      // Extract duration for video/audio files
+      let duration: number | undefined = undefined;
+      let thumbnail: string | undefined = type === "image" ? url : undefined;
+
+      if (type === "video" || type === "audio") {
+        try {
+          const mediaElement = document.createElement(type) as HTMLVideoElement | HTMLAudioElement;
+          mediaElement.src = url;
+          mediaElement.preload = 'metadata';
+
+          await new Promise<void>((resolve, reject) => {
+            mediaElement.onloadedmetadata = () => {
+              duration = mediaElement.duration;
+
+              // For videos, capture a thumbnail
+              if (type === "video" && mediaElement instanceof HTMLVideoElement) {
+                mediaElement.currentTime = Math.min(1, duration / 2); // Seek to middle or 1 second
+                mediaElement.onseeked = () => {
+                  try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = mediaElement.videoWidth;
+                    canvas.height = mediaElement.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                      ctx.drawImage(mediaElement, 0, 0);
+                      thumbnail = canvas.toDataURL();
+                    }
+                  } catch (err) {
+                    console.error("Error generating thumbnail:", err);
+                  }
+                  resolve();
+                };
+              } else {
+                resolve();
+              }
+            };
+            mediaElement.onerror = () => {
+              console.error("Error loading media metadata");
+              resolve(); // Continue even if metadata loading fails
+            };
+          });
+        } catch (err) {
+          console.error("Error extracting media metadata:", err);
+        }
+      }
+
       const asset = {
         id: crypto.randomUUID(),
         name: file.name,
         type: type as any,
         url,
         size: file.size,
-        thumbnail: type === "image" ? url : undefined,
-        duration: undefined, // Would be calculated for video/audio
+        thumbnail,
+        duration,
         metadata: {
           mimeType: file.type,
         },

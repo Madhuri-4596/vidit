@@ -1,15 +1,31 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useEditorStore } from "@/lib/store";
 
 export function VideoPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const { currentTime, isPlaying, currentProject, tracks } = useEditorStore();
 
   const width = currentProject?.width || 1920;
   const height = currentProject?.height || 1080;
+
+  // Helper function to get or create a video element
+  const getVideoElement = (clipId: string, videoUrl: string): HTMLVideoElement => {
+    let videoElement = videoElementsRef.current.get(clipId);
+
+    if (!videoElement) {
+      videoElement = document.createElement('video');
+      videoElement.src = videoUrl;
+      videoElement.crossOrigin = 'anonymous';
+      videoElement.muted = true;
+      videoElement.preload = 'auto';
+      videoElementsRef.current.set(clipId, videoElement);
+    }
+
+    return videoElement;
+  };
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -18,31 +34,139 @@ export function VideoPreview() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Clear canvas
-    ctx.fillStyle = "#000000";
-    ctx.fillRect(0, 0, width, height);
+    const render = async () => {
+      // Clear canvas
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, width, height);
 
-    // Render video clips at current time
-    tracks.forEach((track) => {
-      if (!track.visible) return;
+      // Render video clips at current time
+      for (const track of tracks) {
+        if (!track.visible) continue;
 
-      track.clips.forEach((clip) => {
-        if (currentTime >= clip.startTime && currentTime <= clip.endTime) {
-          // Calculate the time within the clip
-          const clipTime = currentTime - clip.startTime + clip.trimStart;
+        for (const clip of track.clips as any[]) {
+          if (currentTime >= clip.startTime && currentTime <= clip.endTime) {
+            // Calculate the time within the clip
+            const clipTime = currentTime - clip.startTime + (clip.trimStart || 0);
 
-          // Here you would render the actual video frame
-          // For now, we'll just draw a placeholder
-          ctx.fillStyle = track.type === "video" ? "#3B82F6" : "#10B981";
-          ctx.fillRect(50, 50, 200, 100);
+            // Try to render actual media if available
+            if (clip.asset) {
+              // For images, create an image element and draw it
+              if (clip.asset.type === "image" && clip.asset.url) {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                await new Promise<void>((resolve) => {
+                  img.onload = () => {
+                    // Calculate aspect ratio fit
+                    const scale = Math.min(width / img.width, height / img.height);
+                    const scaledWidth = img.width * scale;
+                    const scaledHeight = img.height * scale;
+                    const x = (width - scaledWidth) / 2;
+                    const y = (height - scaledHeight) / 2;
 
-          ctx.fillStyle = "#FFFFFF";
-          ctx.font = "16px sans-serif";
-          ctx.fillText(`${track.type} - ${clip.id.slice(0, 8)}`, 60, 100);
+                    ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
+                    resolve();
+                  };
+                  img.onerror = () => resolve();
+                  img.src = clip.asset.url;
+                });
+              } else if (clip.asset.type === "video" && clip.asset.url) {
+                // For videos, use video element
+                const videoElement = getVideoElement(clip.id, clip.asset.url);
+
+                // Set video time to the calculated clip time
+                if (Math.abs(videoElement.currentTime - clipTime) > 0.1) {
+                  videoElement.currentTime = clipTime;
+                }
+
+                // Wait for video to be ready
+                if (videoElement.readyState >= 2) {
+                  // Calculate aspect ratio fit
+                  const scale = Math.min(width / videoElement.videoWidth, height / videoElement.videoHeight);
+                  const scaledWidth = videoElement.videoWidth * scale;
+                  const scaledHeight = videoElement.videoHeight * scale;
+                  const x = (width - scaledWidth) / 2;
+                  const y = (height - scaledHeight) / 2;
+
+                  ctx.drawImage(videoElement, x, y, scaledWidth, scaledHeight);
+                } else {
+                  // Show loading state
+                  ctx.fillStyle = "#3B82F6";
+                  ctx.fillRect(50, 50, 200, 100);
+                  ctx.fillStyle = "#FFFFFF";
+                  ctx.font = "16px sans-serif";
+                  ctx.fillText("Loading video...", 60, 100);
+                }
+              } else {
+                // Placeholder for audio
+                ctx.fillStyle = track.type === "audio" ? "#10B981" : "#F59E0B";
+                ctx.fillRect(50, 50, 200, 100);
+
+                ctx.fillStyle = "#FFFFFF";
+                ctx.font = "16px sans-serif";
+                ctx.fillText(clip.asset.name || `${track.type} clip`, 60, 100);
+              }
+            } else {
+              // Fallback placeholder
+              ctx.fillStyle = "#6B7280";
+              ctx.fillRect(50, 50, 200, 100);
+              ctx.fillStyle = "#FFFFFF";
+              ctx.font = "16px sans-serif";
+              ctx.fillText("No media", 60, 100);
+            }
+          }
+        }
+      }
+    };
+
+    render();
+  }, [currentTime, tracks, width, height]);
+
+  // Cleanup video elements that are no longer in use
+  useEffect(() => {
+    const activeClipIds = new Set<string>();
+    tracks.forEach(track => {
+      track.clips.forEach((clip: any) => {
+        if (clip.asset?.type === 'video') {
+          activeClipIds.add(clip.id);
         }
       });
     });
-  }, [currentTime, tracks, width, height]);
+
+    // Remove video elements for clips that no longer exist
+    videoElementsRef.current.forEach((videoElement, clipId) => {
+      if (!activeClipIds.has(clipId)) {
+        videoElement.pause();
+        videoElement.src = '';
+        videoElement.load(); // Release resources
+        videoElementsRef.current.delete(clipId);
+      }
+    });
+  }, [tracks]);
+
+  // Sync video elements play/pause state with timeline
+  useEffect(() => {
+    videoElementsRef.current.forEach((videoElement) => {
+      if (isPlaying) {
+        videoElement.play().catch(() => {
+          // Ignore play errors (e.g., if video is not ready)
+        });
+      } else {
+        videoElement.pause();
+      }
+    });
+  }, [isPlaying]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      videoElementsRef.current.forEach((videoElement) => {
+        videoElement.pause();
+        videoElement.src = '';
+        videoElement.load();
+      });
+      videoElementsRef.current.clear();
+    };
+  }, []);
 
   // Handle playback
   useEffect(() => {
