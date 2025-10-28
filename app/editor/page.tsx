@@ -25,8 +25,24 @@ export default function EditorPage() {
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [leftPanel, setLeftPanel] = useState<"media" | "effects" | "vaia">("media");
   const [rightPanel, setRightPanel] = useState<"vaia" | "publish">("vaia");
+  const [showDebug, setShowDebug] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
 
-  const { currentProject, setCurrentProject } = useEditorStore();
+  const { currentProject, setCurrentProject, tracks, assets } = useEditorStore();
+
+  // Show toast notification
+  const showToast = (message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Listen for track/clip changes
+  useEffect(() => {
+    if (tracks.length > 0) {
+      const totalClips = tracks.reduce((sum, track) => sum + track.clips.length, 0);
+      console.log(`📊 Tracks: ${tracks.length}, Total Clips: ${totalClips}`);
+    }
+  }, [tracks]);
 
   // Initialize default project if none exists
   useEffect(() => {
@@ -44,6 +60,63 @@ export default function EditorPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white">
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg font-semibold animate-bounce">
+          {toast}
+        </div>
+      )}
+
+      {/* Debug Panel */}
+      {showDebug && (
+        <div className="fixed bottom-4 right-4 z-50 bg-gray-800 border border-purple-500 rounded-lg p-4 shadow-xl max-w-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-purple-400">Debug Info</h3>
+            <button
+              onClick={() => setShowDebug(false)}
+              className="text-xs text-gray-400 hover:text-white"
+            >
+              Hide
+            </button>
+          </div>
+          <div className="text-xs space-y-1">
+            <div className="flex justify-between">
+              <span className="text-gray-400">Assets:</span>
+              <span className="text-white font-semibold">{assets.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Tracks:</span>
+              <span className="text-white font-semibold">{tracks.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Total Clips:</span>
+              <span className="text-white font-semibold">
+                {tracks.reduce((sum, track) => sum + track.clips.length, 0)}
+              </span>
+            </div>
+            {tracks.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-700">
+                <p className="text-purple-300 font-semibold mb-1">Tracks:</p>
+                {tracks.map((track, i) => (
+                  <div key={track.id} className="text-gray-300">
+                    {i + 1}. {track.type} ({track.clips.length} clips)
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!showDebug && (
+        <button
+          onClick={() => setShowDebug(true)}
+          className="fixed bottom-4 right-4 z-50 bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded text-xs"
+        >
+          Show Debug
+        </button>
+      )}
+
       {/* Top Bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
         <div className="flex items-center gap-4">

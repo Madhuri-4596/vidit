@@ -5,12 +5,21 @@ import { useEditorStore } from "@/lib/store";
 import { Upload, Video, Music, Image as ImageIcon, Type, Search, Loader2, Check } from "lucide-react";
 
 export function MediaLibrary() {
-  const { assets, addAsset, tracks, addTrack, addClip, currentTime } = useEditorStore();
+  const { assets, addAsset, tracks, addTrack, addClip, currentTime, currentProject } = useEditorStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "video" | "audio" | "image">("all");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
   const [addedAssetId, setAddedAssetId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
+
+  // Show notification
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   // Add demo assets on first load
   useEffect(() => {
@@ -244,11 +253,22 @@ export function MediaLibrary() {
     setAddedAssetId(asset.id);
     setTimeout(() => setAddedAssetId(null), 1500);
 
+    // Show notification
+    setNotification(`✅ "${asset.name}" added to timeline!`);
+
     console.log('✅ Asset added to timeline successfully!');
+    console.log('Current state - Tracks:', tracks.length + 1, 'Project:', currentProject);
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-900">
+    <div className="flex flex-col h-full bg-gray-900 relative">
+      {/* Notification */}
+      {notification && (
+        <div className="absolute top-2 left-2 right-2 z-50 bg-green-500 text-white px-4 py-2 rounded shadow-lg text-sm font-semibold animate-bounce">
+          {notification}
+        </div>
+      )}
+
       {/* Header */}
       <div className="p-4 border-b border-gray-800">
         <h2 className="text-lg font-semibold text-white mb-3">Media Library</h2>
