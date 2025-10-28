@@ -11,6 +11,7 @@ const SECONDS_WIDTH = 100; // pixels per second at zoom = 1
 export function SimpleTimeline() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 1000, height: 400 });
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   const {
     tracks,
@@ -55,6 +56,7 @@ export function SimpleTimeline() {
   const handleDrop = (e: React.DragEvent, trackId?: string) => {
     e.preventDefault();
     e.stopPropagation();
+    setIsDraggingOver(false);
 
     console.log('Drop event triggered on timeline');
 
@@ -117,6 +119,12 @@ export function SimpleTimeline() {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
   };
 
   // Generate time markers
@@ -161,12 +169,23 @@ export function SimpleTimeline() {
 
       {/* Tracks Container */}
       <div
-        className="relative"
+        className={`relative transition-all ${
+          isDraggingOver ? "bg-purple-900/20 ring-2 ring-purple-500/50" : ""
+        }`}
         onClick={handleTimelineClick}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
         style={{ width: totalWidth, minHeight: tracks.length > 0 ? "auto" : "200px" }}
       >
+        {/* Drop zone hint */}
+        {isDraggingOver && (
+          <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+            <div className="bg-purple-600 text-white px-6 py-3 rounded-lg shadow-lg text-lg font-semibold">
+              📍 Drop here to add to timeline
+            </div>
+          </div>
+        )}
         {/* Vertical grid lines */}
         {timeMarkers.map((time) => (
           <div

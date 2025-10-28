@@ -177,7 +177,20 @@ export function MediaLibrary() {
   };
 
   const handleDragStart = (e: React.DragEvent, asset: any) => {
+    console.log('Drag started for asset:', asset.name, asset.type);
+    e.dataTransfer.effectAllowed = "copy";
     e.dataTransfer.setData("asset", JSON.stringify(asset));
+
+    // Set drag image (optional - makes it look nicer)
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = "0.5";
+    }
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = "1";
+    }
   };
 
   return (
@@ -263,14 +276,20 @@ export function MediaLibrary() {
             <p className="text-xs mt-1">Upload videos, audio, or images to get started</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {filteredAssets.map((asset) => (
-              <div
-                key={asset.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, asset)}
-                className="bg-gray-800 rounded overflow-hidden cursor-move hover:ring-2 hover:ring-purple-500 transition-all"
-              >
+          <>
+            <p className="text-xs text-gray-400 mb-3 text-center">
+              💡 Drag files below to the timeline to start editing
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {filteredAssets.map((asset) => (
+                <div
+                  key={asset.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, asset)}
+                  onDragEnd={handleDragEnd}
+                  className="bg-gray-800 rounded overflow-hidden cursor-move hover:ring-2 hover:ring-purple-500 transition-all active:opacity-50"
+                  title="Drag to timeline to add to your video"
+                >
                 <div className="aspect-video bg-gray-950 flex items-center justify-center">
                   {asset.thumbnail ? (
                     <img
@@ -297,7 +316,8 @@ export function MediaLibrary() {
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>
