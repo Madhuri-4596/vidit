@@ -163,6 +163,7 @@ export function VideoPreview() {
             if (clip.asset) {
               // For images, create an image element and draw it
               if (clip.asset.type === "image" && clip.asset.url) {
+                console.log(`🖼️ Loading image: ${clip.asset.name}, alpha: ${transitionAlpha}, scale: ${transitionTransform.scale}`);
                 const img = new Image();
                 // Only set crossOrigin for non-blob URLs
                 if (!clip.asset.url.startsWith('blob:')) {
@@ -171,13 +172,14 @@ export function VideoPreview() {
 
                 await new Promise<void>((resolve) => {
                   const timeout = setTimeout(() => {
-                    console.warn('Image load timeout:', clip.asset.name);
+                    console.warn('⏱️ Image load timeout:', clip.asset.name);
                     resolve();
                   }, 5000);
 
                   img.onload = () => {
                     clearTimeout(timeout);
                     if (isCancelled) {
+                      console.log('❌ Cancelled before drawing');
                       resolve();
                       return;
                     }
@@ -190,15 +192,17 @@ export function VideoPreview() {
                       const x = (width - scaledWidth) / 2 + transitionTransform.x;
                       const y = (height - scaledHeight) / 2 + transitionTransform.y;
 
+                      console.log(`✏️ Drawing image at (${x.toFixed(0)}, ${y.toFixed(0)}), size: ${scaledWidth.toFixed(0)}x${scaledHeight.toFixed(0)}`);
                       ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
+                      console.log('✅ Image drawn successfully');
                     } catch (err) {
-                      console.error('Error drawing image:', err);
+                      console.error('❌ Error drawing image:', err);
                     }
                     resolve();
                   };
                   img.onerror = (err) => {
                     clearTimeout(timeout);
-                    console.error('Image load error:', err);
+                    console.error('❌ Image load error:', err);
                     resolve();
                   };
                   img.src = clip.asset.url;
