@@ -2,14 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useEditorStore } from "@/lib/store";
-import { Upload, Video, Music, Image as ImageIcon, Type, Search, Loader2 } from "lucide-react";
+import { Upload, Video, Music, Image as ImageIcon, Type, Search, Loader2, Check } from "lucide-react";
 
 export function MediaLibrary() {
-  const { assets, addAsset } = useEditorStore();
+  const { assets, addAsset, tracks, addTrack, addClip, currentTime } = useEditorStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "video" | "audio" | "image">("all");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
+  const [addedAssetId, setAddedAssetId] = useState<string | null>(null);
 
   // Add demo assets on first load
   useEffect(() => {
@@ -193,6 +194,59 @@ export function MediaLibrary() {
     }
   };
 
+  const handleAssetClick = (asset: any) => {
+    console.log('Asset clicked:', asset.name, asset.type);
+
+    // Find or create a track for this asset type
+    let targetTrack = tracks.find(t => t.type === asset.type);
+
+    if (!targetTrack) {
+      // Create a new track
+      const newTrack = {
+        id: crypto.randomUUID(),
+        type: asset.type as "video" | "audio" | "text" | "overlay",
+        order: tracks.length,
+        locked: false,
+        visible: true,
+        clips: [],
+      };
+      console.log('Creating new track for click:', newTrack);
+      addTrack(newTrack);
+      targetTrack = newTrack;
+    }
+
+    // Create clip at current time (or at the end of existing clips)
+    let startTime = currentTime;
+
+    // If there are clips on this track, add at the end
+    if (targetTrack.clips.length > 0) {
+      const lastClip = targetTrack.clips[targetTrack.clips.length - 1];
+      startTime = Math.max(startTime, (lastClip as any).endTime || 0);
+    }
+
+    const clipDuration = asset.duration || 5;
+    const clip = {
+      id: crypto.randomUUID(),
+      trackId: targetTrack.id,
+      assetId: asset.id,
+      startTime,
+      endTime: startTime + clipDuration,
+      duration: clipDuration,
+      trimStart: 0,
+      trimEnd: 0,
+      asset: asset,
+    };
+
+    console.log('Adding clip from click:', clip);
+    addClip(targetTrack.id, clip);
+
+    // Show visual feedback
+    setAddedAssetId(asset.id);
+    setTimeout(() => setAddedAssetId(null), 1500);
+
+    console.log('✅ Asset added to timeline successfully!');
+  };
+
   return (
     <div className="flex flex-col h-full bg-gray-900">
       {/* Header */}
@@ -277,20 +331,38 @@ export function MediaLibrary() {
           </div>
         ) : (
           <>
-            <p className="text-xs text-gray-400 mb-3 text-center">
-              💡 Drag files below to the timeline to start editing
-            </p>
+            <div className="bg-gray-800/50 border border-purple-500/30 rounded p-3 mb-4">
+              <p className="text-sm text-purple-300 text-center font-semibold">
+                👆 Click any file below to add it to your video
+              </p>
+              <p className="text-xs text-gray-400 text-center mt-1">
+                Or drag and drop to timeline
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              {filteredAssets.map((asset) => (
-                <div
-                  key={asset.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, asset)}
-                  onDragEnd={handleDragEnd}
-                  className="bg-gray-800 rounded overflow-hidden cursor-move hover:ring-2 hover:ring-purple-500 transition-all active:opacity-50"
-                  title="Drag to timeline to add to your video"
-                >
-                <div className="aspect-video bg-gray-950 flex items-center justify-center">
+              {filteredAssets.map((asset) => {
+                const isAdded = addedAssetId === asset.id;
+                return (
+                  <div
+                    key={asset.id}
+                    draggable
+                    onClick={() => handleAssetClick(asset)}
+                    onDragStart={(e) => handleDragStart(e, asset)}
+                    onDragEnd={handleDragEnd}
+                    className={`bg-gray-800 rounded overflow-hidden cursor-pointer hover:ring-2 hover:ring-purple-500 transition-all hover:scale-105 active:scale-95 ${
+                      isAdded ? "ring-2 ring-green-500" : ""
+                    }`}
+                    title="Click to add to timeline"
+                  >
+                  {isAdded && (
+                    <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center z-10">
+                      <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        Added!
+                      </div>
+                    </div>
+                  )}
+                  <div className="aspect-video bg-gray-950 flex items-center justify-center relative">
                   {asset.thumbnail ? (
                     <img
                       src={asset.thumbnail}
@@ -305,17 +377,18 @@ export function MediaLibrary() {
                       {asset.type === "text" && <Type className="w-8 h-8" />}
                     </div>
                   )}
+                  </div>
+                  <div className="p-2">
+                    <p className="text-xs text-white truncate">{asset.name}</p>
+                    {asset.duration && (
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {asset.duration.toFixed(1)}s
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="p-2">
-                  <p className="text-xs text-white truncate">{asset.name}</p>
-                  {asset.duration && (
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {asset.duration.toFixed(1)}s
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
             </div>
           </>
         )}
