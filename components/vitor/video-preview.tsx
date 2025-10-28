@@ -52,26 +52,15 @@ export function VideoPreview() {
       ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, width, height);
 
-      if (tracks.length > 0) {
-        console.log(`VideoPreview render - Tracks: ${tracks.length}, Time: ${currentTime.toFixed(2)}s`);
-      }
-
       // Render video clips at current time - process in reverse order so top tracks render last
       for (let i = 0; i < tracks.length; i++) {
         const track = tracks[i];
         if (!track.visible || isCancelled) continue;
 
-        if (track.clips.length > 0) {
-          console.log(`  Track ${i} (${track.type}): ${track.clips.length} clips`);
-        }
-
         for (const clip of track.clips as any[]) {
           if (isCancelled) break;
 
-          console.log(`    Clip: ${clip.startTime.toFixed(1)}-${clip.endTime.toFixed(1)}s, Current: ${currentTime.toFixed(1)}s`);
-
           if (currentTime >= clip.startTime && currentTime <= clip.endTime) {
-            console.log(`      ✓ Rendering clip: ${clip.asset?.name || 'unnamed'} (${clip.asset?.type})`);
 
             // Calculate the time within the clip
             const clipTime = currentTime - clip.startTime + (clip.trimStart || 0);

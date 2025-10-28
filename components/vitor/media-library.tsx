@@ -205,15 +205,9 @@ export function MediaLibrary() {
 
   const handleAssetClick = (asset: any) => {
     try {
-      console.log('🖱️ CLICK DETECTED! Asset:', asset.name, asset.type);
-      alert(`Click detected on: ${asset.name}`);
-
       // Show immediate feedback
       setAddedAssetId(asset.id);
-      setNotification(`Processing ${asset.name}...`);
-
-      console.log('Current project:', currentProject);
-      console.log('Current tracks before add:', tracks.length);
+      setNotification(`Adding ${asset.name}...`);
 
       // Find or create a track for this asset type
       let targetTrack = tracks.find(t => t.type === asset.type);
@@ -228,12 +222,8 @@ export function MediaLibrary() {
           visible: true,
           clips: [],
         };
-        console.log('📝 Creating new track:', newTrack);
         addTrack(newTrack);
         targetTrack = newTrack;
-        alert(`Created new ${asset.type} track!`);
-      } else {
-        console.log('📝 Using existing track:', targetTrack.id);
       }
 
       // Create clip at current time (or at the end of existing clips)
@@ -243,9 +233,6 @@ export function MediaLibrary() {
       if (targetTrack.clips.length > 0) {
         const lastClip = targetTrack.clips[targetTrack.clips.length - 1];
         startTime = Math.max(startTime, (lastClip as any).endTime || 0);
-        console.log('📍 Placing clip after existing clips at:', startTime);
-      } else {
-        console.log('📍 Placing clip at current time:', startTime);
       }
 
       const clipDuration = asset.duration || 5;
@@ -261,23 +248,15 @@ export function MediaLibrary() {
         asset: asset,
       };
 
-      console.log('🎬 Creating clip:', clip);
       addClip(targetTrack.id, clip);
 
-      console.log('Current tracks after add:', tracks.length);
-
       // Show success feedback
-      setTimeout(() => {
-        setNotification(`✅ "${asset.name}" added to timeline!`);
-        alert(`✅ Success! ${asset.name} added to timeline!`);
-      }, 100);
-
+      setNotification(`✅ "${asset.name}" added to timeline!`);
       setTimeout(() => setAddedAssetId(null), 1500);
 
-      console.log('✅ Asset added to timeline successfully!');
+      console.log('✅ Asset added:', asset.name, 'at', startTime, 'seconds');
     } catch (error) {
-      console.error('❌ ERROR in handleAssetClick:', error);
-      alert(`ERROR: ${error}`);
+      console.error('❌ ERROR adding asset:', error);
       setNotification(`❌ Error adding ${asset.name}`);
     }
   };

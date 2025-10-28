@@ -58,25 +58,15 @@ export function SimpleTimeline() {
     e.stopPropagation();
     setIsDraggingOver(false);
 
-    console.log('Drop event triggered on timeline');
-
     const assetData = e.dataTransfer.getData("asset");
-    if (!assetData) {
-      console.warn('No asset data in drag event');
-      return;
-    }
-
-    console.log('Asset data received:', assetData);
+    if (!assetData) return;
 
     try {
       const asset = JSON.parse(assetData);
-      console.log('Parsed asset:', asset);
 
       const rect = e.currentTarget.getBoundingClientRect();
       const dropX = e.clientX - rect.left;
       const dropTime = Math.max(0, dropX / pixelsPerSecond);
-
-      console.log('Drop position:', { dropX, dropTime, pixelsPerSecond });
 
       // If no track specified or track doesn't exist, create a new track
       let targetTrackId = trackId;
@@ -89,7 +79,6 @@ export function SimpleTimeline() {
           visible: true,
           clips: [],
         };
-        console.log('Creating new track:', newTrack);
         addTrack(newTrack);
         targetTrackId = newTrack.id;
       }
@@ -108,11 +97,9 @@ export function SimpleTimeline() {
         asset: asset, // Store asset reference for rendering
       };
 
-      console.log('Creating clip:', clip);
       addClip(targetTrackId, clip);
-      console.log('Clip added successfully. Current tracks:', tracks.length + 1);
     } catch (err) {
-      console.error('Error in handleDrop:', err);
+      console.error('Error dropping asset:', err);
     }
   };
 
