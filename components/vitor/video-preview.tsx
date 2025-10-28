@@ -95,14 +95,18 @@ export function VideoPreview() {
             let transitionTransform = { x: 0, y: 0, scale: 1 };
 
             if (clipTransition) {
+              console.log(`🎬 Transition data:`, clipTransition);
               // Fade in
               if (clipTransition.in && clipTransition.in.type && clipTransition.in.type !== "none") {
                 const fadeInDuration = clipTransition.in.duration || 0.5;
+                console.log(`⬇️ Fade in: type=${clipTransition.in.type}, duration=${fadeInDuration}, clipTime=${clipTime.toFixed(2)}`);
                 if (clipTime < fadeInDuration) {
                   const progress = Math.max(0, Math.min(1, clipTime / fadeInDuration));
+                  console.log(`📈 Fade in progress: ${(progress * 100).toFixed(0)}%`);
 
                   if (clipTransition.in.type === "fade") {
                     transitionAlpha = progress;
+                    console.log(`🌫️ Setting alpha to ${transitionAlpha.toFixed(2)}`);
                   } else if (clipTransition.in.type === "slide-left") {
                     transitionTransform.x = (1 - progress) * width;
                   } else if (clipTransition.in.type === "slide-right") {
