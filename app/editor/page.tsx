@@ -7,6 +7,7 @@ import { VideoPreview } from "@/components/vitor/video-preview";
 import { MediaLibrary } from "@/components/vitor/media-library";
 import { SocialPublishing } from "@/components/vport/social-publishing";
 import { TimelineWrapper } from "@/components/vitor/timeline-wrapper";
+import { ClipProperties } from "@/components/vitor/clip-properties";
 import { useEditorStore } from "@/lib/store";
 import {
   Sparkles,
@@ -127,10 +128,18 @@ export default function EditorPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 rounded transition-colors">
+          <button
+            onClick={() => alert("Project saved! (Feature coming soon)")}
+            className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+          >
             Save
           </button>
-          <button className="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 rounded transition-colors">
+          <button
+            onClick={() => {
+              alert("Export will render your timeline to a video file.\n\nNote: Full export requires server-side processing.\n\nFor now, use screen recording to capture your preview!");
+            }}
+            className="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 rounded transition-colors"
+          >
             Export
           </button>
           <button className="p-2 hover:bg-gray-800 rounded transition-colors">
@@ -174,60 +183,8 @@ export default function EditorPage() {
               <div className="flex-1 overflow-hidden">
                 {leftPanel === "media" && <MediaLibrary />}
                 {leftPanel === "effects" && (
-                  <div className="p-4">
-                    <h3 className="text-sm font-semibold mb-3">Effects & Filters</h3>
-                    <p className="text-xs text-gray-500 mb-4">
-                      Select a clip on the timeline, then click an effect to apply it
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { name: "Blur", icon: "🌫️" },
-                        { name: "Brightness", icon: "☀️" },
-                        { name: "Contrast", icon: "🌓" },
-                        { name: "Saturation", icon: "🎨" },
-                        { name: "Sepia", icon: "📜" },
-                        { name: "Grayscale", icon: "⬜" },
-                      ].map((effect) => (
-                        <button
-                          key={effect.name}
-                          className="p-3 bg-gray-800 hover:bg-purple-700 hover:ring-2 hover:ring-purple-500 rounded text-sm transition-all group"
-                          onClick={() => {
-                            // Effect application would go here
-                            alert(`Effect "${effect.name}" will be applied to selected clip when implemented`);
-                          }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span>{effect.icon}</span>
-                            <span>{effect.name}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="mt-6">
-                      <h3 className="text-sm font-semibold mb-3">Transitions</h3>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          { name: "Fade", icon: "⚫" },
-                          { name: "Wipe", icon: "➡️" },
-                          { name: "Slide", icon: "⬅️" },
-                          { name: "Zoom", icon: "🔍" },
-                        ].map((transition) => (
-                          <button
-                            key={transition.name}
-                            className="p-3 bg-gray-800 hover:bg-purple-700 hover:ring-2 hover:ring-purple-500 rounded text-sm transition-all"
-                            onClick={() => {
-                              alert(`Transition "${transition.name}" will be applied when implemented`);
-                            }}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span>{transition.icon}</span>
-                              <span>{transition.name}</span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                  <div className="flex flex-col h-full">
+                    <ClipProperties />
                   </div>
                 )}
                 {leftPanel === "vaia" && <VaiaChat />}
