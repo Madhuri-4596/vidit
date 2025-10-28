@@ -161,52 +161,39 @@ export function VideoPreview() {
 
             // Try to render actual media if available
             if (clip.asset) {
-              // For images, create an image element and draw it
+              // For images, draw directly (images should be preloaded)
               if (clip.asset.type === "image" && clip.asset.url) {
-                console.log(`🖼️ Loading image: ${clip.asset.name}, alpha: ${transitionAlpha}, scale: ${transitionTransform.scale}`);
-                const img = new Image();
-                // Only set crossOrigin for non-blob URLs
-                if (!clip.asset.url.startsWith('blob:')) {
-                  img.crossOrigin = 'anonymous';
-                }
+                console.log(`🖼️ Drawing image: ${clip.asset.name}, alpha: ${transitionAlpha.toFixed(2)}, scale: ${transitionTransform.scale.toFixed(2)}`);
 
-                await new Promise<void>((resolve) => {
-                  const timeout = setTimeout(() => {
-                    console.warn('⏱️ Image load timeout:', clip.asset.name);
-                    resolve();
-                  }, 5000);
-
-                  img.onload = () => {
-                    clearTimeout(timeout);
-                    if (isCancelled) {
-                      console.log('❌ Cancelled before drawing');
-                      resolve();
-                      return;
-                    }
-
-                    try {
-                      // Calculate aspect ratio fit
-                      const scale = Math.min(width / img.width, height / img.height);
-                      const scaledWidth = img.width * scale * transitionTransform.scale;
-                      const scaledHeight = img.height * scale * transitionTransform.scale;
-                      const x = (width - scaledWidth) / 2 + transitionTransform.x;
-                      const y = (height - scaledHeight) / 2 + transitionTransform.y;
-
-                      console.log(`✏️ Drawing image at (${x.toFixed(0)}, ${y.toFixed(0)}), size: ${scaledWidth.toFixed(0)}x${scaledHeight.toFixed(0)}`);
-                      ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
-                      console.log('✅ Image drawn successfully');
-                    } catch (err) {
-                      console.error('❌ Error drawing image:', err);
-                    }
-                    resolve();
-                  };
-                  img.onerror = (err) => {
-                    clearTimeout(timeout);
-                    console.error('❌ Image load error:', err);
-                    resolve();
-                  };
+                try {
+                  const img = new Image();
                   img.src = clip.asset.url;
-                });
+
+                  // If image is already loaded, draw it immediately
+                  if (img.complete && img.naturalWidth > 0) {
+                    const scale = Math.min(width / img.naturalWidth, height / img.naturalHeight);
+                    const scaledWidth = img.naturalWidth * scale * transitionTransform.scale;
+                    const scaledHeight = img.naturalHeight * scale * transitionTransform.scale;
+                    const x = (width - scaledWidth) / 2 + transitionTransform.x;
+                    const y = (height - scaledHeight) / 2 + transitionTransform.y;
+
+                    console.log(`✏️ Drawing at (${x.toFixed(0)}, ${y.toFixed(0)}), size: ${scaledWidth.toFixed(0)}x${scaledHeight.toFixed(0)}`);
+                    ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
+                    console.log('✅ Image drawn');
+                  } else {
+                    console.warn('⏳ Image not loaded yet:', clip.asset.name);
+                    // Draw placeholder
+                    ctx.fillStyle = "#3B82F6";
+                    ctx.fillRect(width/2 - 100, height/2 - 30, 200, 60);
+                    ctx.fillStyle = "#FFFFFF";
+                    ctx.font = "14px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText("Loading image...", width/2, height/2);
+                    ctx.textAlign = "left";
+                  }
+                } catch (err) {
+                  console.error('❌ Error drawing image:', err);
+                }
               } else if (clip.asset.type === "video" && clip.asset.url) {
                 // For videos, use video element
                 const videoElement = getVideoElement(clip.id, clip.asset.url);
