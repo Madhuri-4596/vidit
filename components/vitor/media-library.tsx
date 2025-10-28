@@ -204,13 +204,18 @@ export function MediaLibrary() {
   };
 
   const handleAssetClick = (asset: any) => {
+    console.log('🖱️ Asset clicked:', asset.name);
+
     try {
+      console.log('📝 Current state - Tracks:', tracks.length, 'Assets:', assets.length);
+
       // Show immediate feedback
       setAddedAssetId(asset.id);
       setNotification(`Adding ${asset.name}...`);
 
       // Find or create a track for this asset type
       let targetTrack = tracks.find(t => t.type === asset.type);
+      console.log('🎯 Found existing track:', !!targetTrack);
 
       if (!targetTrack) {
         // Create a new track
@@ -222,6 +227,7 @@ export function MediaLibrary() {
           visible: true,
           clips: [],
         };
+        console.log('➕ Creating new track:', newTrack.type);
         addTrack(newTrack);
         targetTrack = newTrack;
       }
@@ -234,6 +240,8 @@ export function MediaLibrary() {
         const lastClip = targetTrack.clips[targetTrack.clips.length - 1];
         startTime = Math.max(startTime, (lastClip as any).endTime || 0);
       }
+
+      console.log('⏱️ Clip start time:', startTime);
 
       const clipDuration = asset.duration || 5;
       const clip = {
@@ -248,15 +256,18 @@ export function MediaLibrary() {
         asset: asset,
       };
 
+      console.log('📦 Creating clip:', clip.id, 'duration:', clipDuration);
       addClip(targetTrack.id, clip);
+      console.log('✅ Clip added to store');
 
       // Show success feedback
       setNotification(`✅ "${asset.name}" added to timeline!`);
       setTimeout(() => setAddedAssetId(null), 1500);
 
-      console.log('✅ Asset added:', asset.name, 'at', startTime, 'seconds');
+      console.log('✅ Asset added successfully:', asset.name, 'at', startTime, 'seconds');
     } catch (error) {
       console.error('❌ ERROR adding asset:', error);
+      console.error('Error stack:', (error as Error).stack);
       setNotification(`❌ Error adding ${asset.name}`);
     }
   };
