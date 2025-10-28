@@ -204,18 +204,24 @@ export function VideoPreview() {
               } else if (clip.asset.type === "video" && clip.asset.url) {
                 // For videos, use video element
                 const videoElement = getVideoElement(clip.id, clip.asset.url);
+                console.log(`🎥 Video clip: ${clip.asset.name}, readyState: ${videoElement.readyState}, currentTime: ${videoElement.currentTime.toFixed(2)}, clipTime: ${clipTime.toFixed(2)}`);
 
                 try {
                   // Set video time to the calculated clip time with better precision
                   if (Math.abs(videoElement.currentTime - clipTime) > 0.033) { // ~1 frame at 30fps
+                    console.log(`⏩ Seeking video to ${clipTime.toFixed(2)}s`);
                     videoElement.currentTime = clipTime;
 
                     // Wait for seek to complete
                     await new Promise<void>((resolve) => {
-                      const timeout = setTimeout(resolve, 100); // Don't wait forever
+                      const timeout = setTimeout(() => {
+                        console.log('⏱️ Seek timeout');
+                        resolve();
+                      }, 100);
                       const handleSeeked = () => {
                         clearTimeout(timeout);
                         videoElement.removeEventListener('seeked', handleSeeked);
+                        console.log('✅ Seek complete');
                         resolve();
                       };
                       videoElement.addEventListener('seeked', handleSeeked);
@@ -233,8 +239,11 @@ export function VideoPreview() {
                     const x = (width - scaledWidth) / 2 + transitionTransform.x;
                     const y = (height - scaledHeight) / 2 + transitionTransform.y;
 
+                    console.log(`✏️ Drawing video at (${x.toFixed(0)}, ${y.toFixed(0)}), size: ${scaledWidth.toFixed(0)}x${scaledHeight.toFixed(0)}`);
                     ctx.drawImage(videoElement, x, y, scaledWidth, scaledHeight);
+                    console.log('✅ Video drawn');
                   } else {
+                    console.warn(`⏳ Video not ready: readyState=${videoElement.readyState}`);
                     // Show loading state
                     ctx.fillStyle = "#3B82F6";
                     const rectWidth = Math.min(300, width - 100);
@@ -250,7 +259,7 @@ export function VideoPreview() {
                     ctx.textAlign = "left";
                   }
                 } catch (err) {
-                  console.error('Error rendering video:', err);
+                  console.error('❌ Error rendering video:', err);
                 }
               } else {
                 // Placeholder for audio
