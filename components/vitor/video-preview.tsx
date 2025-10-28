@@ -70,12 +70,12 @@ export function VideoPreview() {
             let transitionAlpha = 1;
             let transitionTransform = { x: 0, y: 0, scale: 1 };
 
-            if (clipTransition) {
+            if (clipTransition && clipTransition.in && clipTransition.out) {
               // Fade in
-              if (clipTransition.in.type !== "none") {
-                const fadeInDuration = clipTransition.in.duration;
+              if (clipTransition.in.type && clipTransition.in.type !== "none") {
+                const fadeInDuration = clipTransition.in.duration || 0.5;
                 if (clipTime < fadeInDuration) {
-                  const progress = clipTime / fadeInDuration;
+                  const progress = Math.max(0, Math.min(1, clipTime / fadeInDuration));
 
                   if (clipTransition.in.type === "fade") {
                     transitionAlpha = progress;
@@ -88,20 +88,21 @@ export function VideoPreview() {
                   } else if (clipTransition.in.type === "slide-down") {
                     transitionTransform.y = -(1 - progress) * height;
                   } else if (clipTransition.in.type === "zoom") {
-                    transitionTransform.scale = progress;
+                    // Scale from 0.3 to 1.0 instead of 0 to 1
+                    transitionTransform.scale = 0.3 + (progress * 0.7);
                     transitionAlpha = progress;
                   }
                 }
               }
 
               // Fade out
-              if (clipTransition.out.type !== "none") {
+              if (clipTransition.out.type && clipTransition.out.type !== "none") {
                 const effectiveDuration = clip.duration - (clip.trimStart || 0) - (clip.trimEnd || 0);
-                const fadeOutDuration = clipTransition.out.duration;
+                const fadeOutDuration = clipTransition.out.duration || 0.5;
                 const timeUntilEnd = effectiveDuration - clipTime;
 
-                if (timeUntilEnd < fadeOutDuration) {
-                  const progress = timeUntilEnd / fadeOutDuration;
+                if (timeUntilEnd < fadeOutDuration && timeUntilEnd > 0) {
+                  const progress = Math.max(0, Math.min(1, timeUntilEnd / fadeOutDuration));
 
                   if (clipTransition.out.type === "fade") {
                     transitionAlpha = Math.min(transitionAlpha, progress);
@@ -114,7 +115,8 @@ export function VideoPreview() {
                   } else if (clipTransition.out.type === "slide-down") {
                     transitionTransform.y = (1 - progress) * height;
                   } else if (clipTransition.out.type === "zoom") {
-                    transitionTransform.scale = progress;
+                    // Scale from 1.0 to 0.3 instead of 1 to 0
+                    transitionTransform.scale = 0.3 + (progress * 0.7);
                     transitionAlpha = Math.min(transitionAlpha, progress);
                   }
                 }
