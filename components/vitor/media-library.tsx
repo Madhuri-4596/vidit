@@ -204,60 +204,82 @@ export function MediaLibrary() {
   };
 
   const handleAssetClick = (asset: any) => {
-    console.log('Asset clicked:', asset.name, asset.type);
+    try {
+      console.log('🖱️ CLICK DETECTED! Asset:', asset.name, asset.type);
+      alert(`Click detected on: ${asset.name}`);
 
-    // Find or create a track for this asset type
-    let targetTrack = tracks.find(t => t.type === asset.type);
+      // Show immediate feedback
+      setAddedAssetId(asset.id);
+      setNotification(`Processing ${asset.name}...`);
 
-    if (!targetTrack) {
-      // Create a new track
-      const newTrack = {
+      console.log('Current project:', currentProject);
+      console.log('Current tracks before add:', tracks.length);
+
+      // Find or create a track for this asset type
+      let targetTrack = tracks.find(t => t.type === asset.type);
+
+      if (!targetTrack) {
+        // Create a new track
+        const newTrack = {
+          id: crypto.randomUUID(),
+          type: asset.type as "video" | "audio" | "text" | "overlay",
+          order: tracks.length,
+          locked: false,
+          visible: true,
+          clips: [],
+        };
+        console.log('📝 Creating new track:', newTrack);
+        addTrack(newTrack);
+        targetTrack = newTrack;
+        alert(`Created new ${asset.type} track!`);
+      } else {
+        console.log('📝 Using existing track:', targetTrack.id);
+      }
+
+      // Create clip at current time (or at the end of existing clips)
+      let startTime = currentTime;
+
+      // If there are clips on this track, add at the end
+      if (targetTrack.clips.length > 0) {
+        const lastClip = targetTrack.clips[targetTrack.clips.length - 1];
+        startTime = Math.max(startTime, (lastClip as any).endTime || 0);
+        console.log('📍 Placing clip after existing clips at:', startTime);
+      } else {
+        console.log('📍 Placing clip at current time:', startTime);
+      }
+
+      const clipDuration = asset.duration || 5;
+      const clip = {
         id: crypto.randomUUID(),
-        type: asset.type as "video" | "audio" | "text" | "overlay",
-        order: tracks.length,
-        locked: false,
-        visible: true,
-        clips: [],
+        trackId: targetTrack.id,
+        assetId: asset.id,
+        startTime,
+        endTime: startTime + clipDuration,
+        duration: clipDuration,
+        trimStart: 0,
+        trimEnd: 0,
+        asset: asset,
       };
-      console.log('Creating new track for click:', newTrack);
-      addTrack(newTrack);
-      targetTrack = newTrack;
+
+      console.log('🎬 Creating clip:', clip);
+      addClip(targetTrack.id, clip);
+
+      console.log('Current tracks after add:', tracks.length);
+
+      // Show success feedback
+      setTimeout(() => {
+        setNotification(`✅ "${asset.name}" added to timeline!`);
+        alert(`✅ Success! ${asset.name} added to timeline!`);
+      }, 100);
+
+      setTimeout(() => setAddedAssetId(null), 1500);
+
+      console.log('✅ Asset added to timeline successfully!');
+    } catch (error) {
+      console.error('❌ ERROR in handleAssetClick:', error);
+      alert(`ERROR: ${error}`);
+      setNotification(`❌ Error adding ${asset.name}`);
     }
-
-    // Create clip at current time (or at the end of existing clips)
-    let startTime = currentTime;
-
-    // If there are clips on this track, add at the end
-    if (targetTrack.clips.length > 0) {
-      const lastClip = targetTrack.clips[targetTrack.clips.length - 1];
-      startTime = Math.max(startTime, (lastClip as any).endTime || 0);
-    }
-
-    const clipDuration = asset.duration || 5;
-    const clip = {
-      id: crypto.randomUUID(),
-      trackId: targetTrack.id,
-      assetId: asset.id,
-      startTime,
-      endTime: startTime + clipDuration,
-      duration: clipDuration,
-      trimStart: 0,
-      trimEnd: 0,
-      asset: asset,
-    };
-
-    console.log('Adding clip from click:', clip);
-    addClip(targetTrack.id, clip);
-
-    // Show visual feedback
-    setAddedAssetId(asset.id);
-    setTimeout(() => setAddedAssetId(null), 1500);
-
-    // Show notification
-    setNotification(`✅ "${asset.name}" added to timeline!`);
-
-    console.log('✅ Asset added to timeline successfully!');
-    console.log('Current state - Tracks:', tracks.length + 1, 'Project:', currentProject);
   };
 
   return (
