@@ -8,6 +8,8 @@ export function ClipProperties() {
   const { selectedClipId, tracks, updateClip, removeClip, addClip, setSelectedClipId } = useEditorStore();
   const [showEffects, setShowEffects] = useState(false);
   const [showTransitions, setShowTransitions] = useState(false);
+  const [showEffectSegments, setShowEffectSegments] = useState(false);
+  const [editingSegmentIndex, setEditingSegmentIndex] = useState<number | null>(null);
 
   // Find the selected clip
   let selectedClip: any = null;
@@ -30,7 +32,10 @@ export function ClipProperties() {
     );
   }
 
-  // Initialize effects if not present
+  // Initialize effect segments if not present
+  const effectSegments = (selectedClip as any).effectSegments || [];
+
+  // Current simple effects (for backward compatibility)
   const effects = selectedClip.effects || {
     blur: 0,
     brightness: 100,
@@ -88,6 +93,39 @@ export function ClipProperties() {
       [direction]: { ...transition[direction], duration },
     };
     updateClip(selectedClip.id, { transition: newTransition } as any);
+  };
+
+  const addEffectSegment = () => {
+    const newSegment = {
+      id: crypto.randomUUID(),
+      startTime: 0,
+      endTime: selectedClip.duration || 5,
+      effects: {
+        blur: 0,
+        brightness: 100,
+        contrast: 100,
+        saturation: 100,
+        sepia: 0,
+        grayscale: 0,
+      },
+    };
+    const newSegments = [...effectSegments, newSegment];
+    updateClip(selectedClip.id, { effectSegments: newSegments } as any);
+    setEditingSegmentIndex(newSegments.length - 1);
+  };
+
+  const updateEffectSegment = (index: number, updates: any) => {
+    const newSegments = [...effectSegments];
+    newSegments[index] = { ...newSegments[index], ...updates };
+    updateClip(selectedClip.id, { effectSegments: newSegments } as any);
+  };
+
+  const deleteEffectSegment = (index: number) => {
+    const newSegments = effectSegments.filter((_: any, i: number) => i !== index);
+    updateClip(selectedClip.id, { effectSegments: newSegments } as any);
+    if (editingSegmentIndex === index) {
+      setEditingSegmentIndex(null);
+    }
   };
 
   const handleDelete = () => {
@@ -310,6 +348,224 @@ export function ClipProperties() {
             >
               Reset All Effects
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* Effect Timeline (Time-based effects) */}
+      <div className="space-y-2 pt-2 border-t border-gray-700">
+        <button
+          onClick={() => setShowEffectSegments(!showEffectSegments)}
+          className="w-full flex items-center justify-between px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            <span>Effect Timeline</span>
+          </div>
+          <span className="text-xs">{showEffectSegments ? "▼" : "▶"}</span>
+        </button>
+
+        {showEffectSegments && (
+          <div className="space-y-2 p-3 bg-gray-800/50 rounded">
+            <p className="text-xs text-gray-400 mb-2">
+              Apply different effects at different times
+            </p>
+
+            {/* Add Segment Button */}
+            <button
+              onClick={addEffectSegment}
+              className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors"
+            >
+              + Add Effect Segment
+            </button>
+
+            {/* List of segments */}
+            {effectSegments.map((segment: any, index: number) => (
+              <div key={segment.id} className="bg-gray-900 p-3 rounded space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-purple-400">
+                    Segment {index + 1}
+                  </span>
+                  <button
+                    onClick={() => deleteEffectSegment(index)}
+                    className="text-xs text-red-400 hover:text-red-300"
+                  >
+                    Delete
+                  </button>
+                </div>
+
+                {/* Time Range */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-400 block mb-1">
+                      Start (s)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={selectedClip.duration}
+                      step="0.1"
+                      value={segment.startTime}
+                      onChange={(e) =>
+                        updateEffectSegment(index, {
+                          startTime: parseFloat(e.target.value),
+                        })
+                      }
+                      className="w-full px-2 py-1 bg-gray-800 text-white text-xs rounded"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 block mb-1">
+                      End (s)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={selectedClip.duration}
+                      step="0.1"
+                      value={segment.endTime}
+                      onChange={(e) =>
+                        updateEffectSegment(index, {
+                          endTime: parseFloat(e.target.value),
+                        })
+                      }
+                      className="w-full px-2 py-1 bg-gray-800 text-white text-xs rounded"
+                    />
+                  </div>
+                </div>
+
+                {/* Effects for this segment */}
+                <button
+                  onClick={() =>
+                    setEditingSegmentIndex(
+                      editingSegmentIndex === index ? null : index
+                    )
+                  }
+                  className="text-xs text-purple-400 hover:text-purple-300"
+                >
+                  {editingSegmentIndex === index ? "Hide" : "Edit"} Effects
+                </button>
+
+                {editingSegmentIndex === index && (
+                  <div className="space-y-2 pt-2 border-t border-gray-700">
+                    {/* Blur */}
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">
+                        Blur: {segment.effects.blur}px
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="20"
+                        step="1"
+                        value={segment.effects.blur}
+                        onChange={(e) =>
+                          updateEffectSegment(index, {
+                            effects: {
+                              ...segment.effects,
+                              blur: parseFloat(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                      />
+                    </div>
+
+                    {/* Brightness */}
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">
+                        Brightness: {segment.effects.brightness}%
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="200"
+                        step="5"
+                        value={segment.effects.brightness}
+                        onChange={(e) =>
+                          updateEffectSegment(index, {
+                            effects: {
+                              ...segment.effects,
+                              brightness: parseFloat(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                      />
+                    </div>
+
+                    {/* Contrast */}
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">
+                        Contrast: {segment.effects.contrast}%
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="200"
+                        step="5"
+                        value={segment.effects.contrast}
+                        onChange={(e) =>
+                          updateEffectSegment(index, {
+                            effects: {
+                              ...segment.effects,
+                              contrast: parseFloat(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                      />
+                    </div>
+
+                    {/* Saturation */}
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">
+                        Saturation: {segment.effects.saturation}%
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="200"
+                        step="5"
+                        value={segment.effects.saturation}
+                        onChange={(e) =>
+                          updateEffectSegment(index, {
+                            effects: {
+                              ...segment.effects,
+                              saturation: parseFloat(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                      />
+                    </div>
+
+                    {/* Grayscale */}
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">
+                        Grayscale: {segment.effects.grayscale}%
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={segment.effects.grayscale}
+                        onChange={(e) =>
+                          updateEffectSegment(index, {
+                            effects: {
+                              ...segment.effects,
+                              grayscale: parseFloat(e.target.value),
+                            },
+                          })
+                        }
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>

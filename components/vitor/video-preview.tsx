@@ -153,22 +153,35 @@ export function VideoPreview() {
             // Apply transition alpha
             ctx.globalAlpha = transitionAlpha;
 
+            // Check for effect segments (time-based effects)
+            const clipEffectSegments = (clip as any).effectSegments;
+            let activeEffects = clip.effects; // Default to clip-wide effects
+
+            // If effect segments exist, find the active one for current clip time
+            if (clipEffectSegments && clipEffectSegments.length > 0) {
+              const activeSegment = clipEffectSegments.find(
+                (seg: any) => clipTime >= seg.startTime && clipTime <= seg.endTime
+              );
+              if (activeSegment) {
+                activeEffects = activeSegment.effects;
+              }
+            }
+
             // Apply effects if present
-            const clipEffects = clip.effects;
-            if (clipEffects) {
+            if (activeEffects) {
               // Build CSS filter string
               const filters = [];
-              if (clipEffects.blur > 0) filters.push(`blur(${clipEffects.blur}px)`);
-              if (clipEffects.brightness !== 100) filters.push(`brightness(${clipEffects.brightness}%)`);
-              if (clipEffects.contrast !== 100) filters.push(`contrast(${clipEffects.contrast}%)`);
-              if (clipEffects.saturation !== 100) filters.push(`saturate(${clipEffects.saturation}%)`);
-              if (clipEffects.sepia > 0) filters.push(`sepia(${clipEffects.sepia}%)`);
-              if (clipEffects.grayscale > 0) filters.push(`grayscale(${clipEffects.grayscale}%)`);
+              if (activeEffects.blur > 0) filters.push(`blur(${activeEffects.blur}px)`);
+              if (activeEffects.brightness !== 100) filters.push(`brightness(${activeEffects.brightness}%)`);
+              if (activeEffects.contrast !== 100) filters.push(`contrast(${activeEffects.contrast}%)`);
+              if (activeEffects.saturation !== 100) filters.push(`saturate(${activeEffects.saturation}%)`);
+              if (activeEffects.sepia > 0) filters.push(`sepia(${activeEffects.sepia}%)`);
+              if (activeEffects.grayscale > 0) filters.push(`grayscale(${activeEffects.grayscale}%)`);
 
               if (filters.length > 0) {
                 const filterString = filters.join(' ');
                 ctx.filter = filterString;
-                console.log(`🎨 Applying filters: ${filterString}`);
+                console.log(`🎨 Applying filters at ${clipTime.toFixed(2)}s: ${filterString}`);
               } else {
                 ctx.filter = 'none';
               }
