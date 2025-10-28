@@ -36,28 +36,128 @@ export function SocialPublishing() {
     );
   };
 
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishStatus, setPublishStatus] = useState<string>("");
+
   const handlePublish = async () => {
-    const publishData = {
-      platforms: selectedPlatforms,
-      title,
-      description,
-      scheduledFor:
-        scheduledDate && scheduledTime
-          ? new Date(`${scheduledDate}T${scheduledTime}`)
-          : null,
-    };
+    if (!title.trim()) {
+      alert("Please enter a title for your video");
+      return;
+    }
+
+    if (selectedPlatforms.length === 0) {
+      alert("Please select at least one platform");
+      return;
+    }
+
+    setIsPublishing(true);
+    setPublishStatus("🎬 Exporting video...");
 
     try {
-      const response = await fetch("/api/vport/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(publishData),
+      // Step 1: Export the video
+      const canvas = document.querySelector('canvas');
+      if (!canvas) {
+        alert("Canvas not found. Please make sure your video is loaded.");
+        setIsPublishing(false);
+        return;
+      }
+
+      // Get current project info
+      const { currentProject, currentTime, setCurrentTime, setIsPlaying } = (window as any).editorStore || {};
+
+      setPublishStatus("🎥 Recording video...");
+
+      // Create media stream from canvas
+      const stream = canvas.captureStream(30); // 30 fps
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp9',
+        videoBitsPerSecond: 5000000, // 5 Mbps
       });
 
-      const data = await response.json();
-      console.log("Published:", data);
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      // Wait for recording to complete
+      await new Promise<Blob>((resolve, reject) => {
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'video/webm' });
+          resolve(blob);
+        };
+
+        mediaRecorder.onerror = (e) => {
+          reject(e);
+        };
+
+        // Start recording
+        mediaRecorder.start();
+
+        // Play through timeline
+        const originalTime = currentTime || 0;
+        if (setCurrentTime) setCurrentTime(0);
+        if (setIsPlaying) setIsPlaying(true);
+
+        // Stop recording when playback ends
+        const duration = currentProject?.duration || 60;
+        const checkInterval = setInterval(() => {
+          const ct = (window as any).editorStore?.currentTime || 0;
+          const playing = (window as any).editorStore?.isPlaying;
+
+          if (ct >= duration || !playing) {
+            clearInterval(checkInterval);
+            mediaRecorder.stop();
+            if (setIsPlaying) setIsPlaying(false);
+            if (setCurrentTime) setCurrentTime(originalTime);
+          }
+        }, 100);
+
+        // Safety timeout (max 5 minutes)
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          if (mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+          }
+        }, 300000);
+      }).then((videoBlob) => {
+        // Step 2: Download the video
+        setPublishStatus("💾 Saving video...");
+        const url = URL.createObjectURL(videoBlob);
+        const filename = `${title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}.webm`;
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        setPublishStatus("✅ Video downloaded successfully!");
+
+        // Step 3: Show platform-specific instructions
+        setTimeout(() => {
+          const platformNames = selectedPlatforms.map(id =>
+            PLATFORMS.find(p => p.id === id)?.name
+          ).join(", ");
+
+          setPublishStatus(
+            `✅ Video saved! Now you can upload it to: ${platformNames}\n\n` +
+            `📱 The video has been downloaded to your device as "${filename}"\n` +
+            `You can now upload it manually to your selected platforms.`
+          );
+
+          // Reset form after 10 seconds
+          setTimeout(() => {
+            setPublishStatus("");
+            setIsPublishing(false);
+          }, 10000);
+        }, 2000);
+      });
+
     } catch (error) {
       console.error("Publish error:", error);
+      setPublishStatus(`❌ Error: ${(error as Error).message}`);
+      setIsPublishing(false);
     }
   };
 
@@ -70,6 +170,17 @@ export function SocialPublishing() {
           Publish to multiple platforms at once
         </p>
       </div>
+
+      {/* Publishing Status */}
+      {publishStatus && (
+        <div className={`m-4 p-4 rounded-lg ${
+          publishStatus.includes("❌") ? "bg-red-500/20 border border-red-500" :
+          publishStatus.includes("✅") ? "bg-green-500/20 border border-green-500" :
+          "bg-purple-500/20 border border-purple-500"
+        }`}>
+          <p className="text-sm text-white whitespace-pre-line">{publishStatus}</p>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {/* Platform Selection */}
@@ -186,16 +297,19 @@ export function SocialPublishing() {
 
       {/* Actions */}
       <div className="p-4 border-t border-gray-800 flex gap-3">
-        <button className="flex-1 px-4 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors">
+        <button
+          disabled={isPublishing}
+          className="flex-1 px-4 py-3 bg-gray-800 hover:bg-gray-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+        >
           Save as Draft
         </button>
         <button
           onClick={handlePublish}
-          disabled={selectedPlatforms.length === 0}
+          disabled={selectedPlatforms.length === 0 || isPublishing}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
         >
-          <Upload className="w-4 h-4" />
-          {scheduledDate ? "Schedule" : "Publish Now"}
+          <Upload className={`w-4 h-4 ${isPublishing ? "animate-bounce" : ""}`} />
+          {isPublishing ? "Publishing..." : scheduledDate ? "Schedule" : "Publish Now"}
         </button>
       </div>
     </div>

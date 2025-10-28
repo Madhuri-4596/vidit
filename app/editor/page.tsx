@@ -29,7 +29,16 @@ export default function EditorPage() {
   const [showDebug, setShowDebug] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
-  const { currentProject, setCurrentProject, tracks, assets } = useEditorStore();
+  const editorStore = useEditorStore();
+  const { currentProject, setCurrentProject, tracks, assets } = editorStore;
+
+  // Expose editor store to window for publishing component
+  useEffect(() => {
+    (window as any).editorStore = editorStore;
+    return () => {
+      delete (window as any).editorStore;
+    };
+  }, [editorStore]);
 
   // Show toast notification
   const showToast = (message: string) => {
@@ -45,8 +54,24 @@ export default function EditorPage() {
     }
   }, [tracks]);
 
-  // Initialize default project if none exists
+  // Initialize default project if none exists, or restore saved project
   useEffect(() => {
+    // Try to restore saved project
+    try {
+      const savedData = localStorage.getItem('vidit-current-project');
+      if (savedData) {
+        const { project, tracks: savedTracks, assets: savedAssets } = JSON.parse(savedData);
+        setCurrentProject(project);
+        editorStore.setTracks(savedTracks);
+        editorStore.setAssets(savedAssets);
+        showToast("✅ Project restored!");
+        return;
+      }
+    } catch (err) {
+      console.error("Error restoring project:", err);
+    }
+
+    // Create new project if nothing to restore
     if (!currentProject) {
       setCurrentProject({
         id: crypto.randomUUID(),
@@ -129,7 +154,22 @@ export default function EditorPage() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => alert("Project saved! (Feature coming soon)")}
+            onClick={() => {
+              try {
+                // Save project to localStorage
+                const projectData = {
+                  project: currentProject,
+                  tracks,
+                  assets,
+                  timestamp: new Date().toISOString(),
+                };
+                localStorage.setItem('vidit-current-project', JSON.stringify(projectData));
+                showToast("✅ Project saved successfully!");
+              } catch (err) {
+                console.error("Save error:", err);
+                alert("Failed to save project: " + (err as Error).message);
+              }
+            }}
             className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 rounded transition-colors"
           >
             Save
