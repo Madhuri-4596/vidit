@@ -6,6 +6,7 @@ import { useEditorStore } from "@/lib/store";
 export function VideoPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoElementsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const imageElementsRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const { currentTime, isPlaying, currentProject, tracks } = useEditorStore();
 
   const width = currentProject?.width || 1920;
@@ -36,6 +37,29 @@ export function VideoPreview() {
     return videoElement;
   };
 
+  // Helper function to get or create an image element
+  const getImageElement = (clipId: string, imageUrl: string): HTMLImageElement => {
+    let imageElement = imageElementsRef.current.get(clipId);
+
+    if (!imageElement) {
+      imageElement = new Image();
+      // Only set crossOrigin for non-blob URLs
+      if (!imageUrl.startsWith('blob:')) {
+        imageElement.crossOrigin = 'anonymous';
+      }
+      imageElement.src = imageUrl;
+
+      // Add error handler
+      imageElement.addEventListener('error', (e) => {
+        console.error('Image element error:', e, 'URL:', imageUrl);
+      });
+
+      imageElementsRef.current.set(clipId, imageElement);
+    }
+
+    return imageElement;
+  };
+
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -52,14 +76,6 @@ export function VideoPreview() {
       ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, width, height);
 
-      // Debug: Log render info
-      if (tracks.length > 0) {
-        const totalClips = tracks.reduce((sum, t) => sum + t.clips.length, 0);
-        if (totalClips > 0 && currentTime === 0) {
-          console.log(`🎬 Rendering ${tracks.length} tracks with ${totalClips} clips at time ${currentTime.toFixed(2)}s`);
-        }
-      }
-
       // Render video clips at current time - process in reverse order so top tracks render last
       for (let i = 0; i < tracks.length; i++) {
         const track = tracks[i];
@@ -69,9 +85,6 @@ export function VideoPreview() {
           if (isCancelled) break;
 
           if (currentTime >= clip.startTime && currentTime <= clip.endTime) {
-            if (currentTime === 0) {
-              console.log(`📍 Clip active: ${clip.asset?.name}, time: ${clip.startTime}-${clip.endTime}, has asset: ${!!clip.asset}`);
-            }
 
             // Calculate the time within the clip
             const clipTime = currentTime - clip.startTime + (clip.trimStart || 0);
@@ -153,7 +166,11 @@ export function VideoPreview() {
               if (clipEffects.grayscale > 0) filters.push(`grayscale(${clipEffects.grayscale}%)`);
 
               if (filters.length > 0) {
-                ctx.filter = filters.join(' ');
+                const filterString = filters.join(' ');
+                ctx.filter = filterString;
+                console.log(`🎨 Applying filters: ${filterString}`);
+              } else {
+                ctx.filter = 'none';
               }
             } else {
               ctx.filter = 'none';
@@ -161,38 +178,28 @@ export function VideoPreview() {
 
             // Try to render actual media if available
             if (clip.asset) {
-              // For images, draw directly (images should be preloaded)
+              // For images, use cached image element
               if (clip.asset.type === "image" && clip.asset.url) {
-                console.log(`🖼️ Drawing image: ${clip.asset.name}, alpha: ${transitionAlpha.toFixed(2)}, scale: ${transitionTransform.scale.toFixed(2)}`);
+                const img = getImageElement(clip.id, clip.asset.url);
 
-                try {
-                  const img = new Image();
-                  img.src = clip.asset.url;
+                // If image is already loaded, draw it
+                if (img.complete && img.naturalWidth > 0) {
+                  const scale = Math.min(width / img.naturalWidth, height / img.naturalHeight);
+                  const scaledWidth = img.naturalWidth * scale * transitionTransform.scale;
+                  const scaledHeight = img.naturalHeight * scale * transitionTransform.scale;
+                  const x = (width - scaledWidth) / 2 + transitionTransform.x;
+                  const y = (height - scaledHeight) / 2 + transitionTransform.y;
 
-                  // If image is already loaded, draw it immediately
-                  if (img.complete && img.naturalWidth > 0) {
-                    const scale = Math.min(width / img.naturalWidth, height / img.naturalHeight);
-                    const scaledWidth = img.naturalWidth * scale * transitionTransform.scale;
-                    const scaledHeight = img.naturalHeight * scale * transitionTransform.scale;
-                    const x = (width - scaledWidth) / 2 + transitionTransform.x;
-                    const y = (height - scaledHeight) / 2 + transitionTransform.y;
-
-                    console.log(`✏️ Drawing at (${x.toFixed(0)}, ${y.toFixed(0)}), size: ${scaledWidth.toFixed(0)}x${scaledHeight.toFixed(0)}`);
-                    ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
-                    console.log('✅ Image drawn');
-                  } else {
-                    console.warn('⏳ Image not loaded yet:', clip.asset.name);
-                    // Draw placeholder
-                    ctx.fillStyle = "#3B82F6";
-                    ctx.fillRect(width/2 - 100, height/2 - 30, 200, 60);
-                    ctx.fillStyle = "#FFFFFF";
-                    ctx.font = "14px sans-serif";
-                    ctx.textAlign = "center";
-                    ctx.fillText("Loading image...", width/2, height/2);
-                    ctx.textAlign = "left";
-                  }
-                } catch (err) {
-                  console.error('❌ Error drawing image:', err);
+                  ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
+                } else {
+                  // Draw placeholder while loading
+                  ctx.fillStyle = "#3B82F6";
+                  ctx.fillRect(width/2 - 100, height/2 - 30, 200, 60);
+                  ctx.fillStyle = "#FFFFFF";
+                  ctx.font = "14px sans-serif";
+                  ctx.textAlign = "center";
+                  ctx.fillText("Loading image...", width/2, height/2);
+                  ctx.textAlign = "left";
                 }
               } else if (clip.asset.type === "video" && clip.asset.url) {
                 // For videos, use video element
@@ -284,24 +291,36 @@ export function VideoPreview() {
     };
   }, [currentTime, tracks, width, height]);
 
-  // Cleanup video elements that are no longer in use
+  // Cleanup video and image elements that are no longer in use
   useEffect(() => {
-    const activeClipIds = new Set<string>();
+    const activeVideoClipIds = new Set<string>();
+    const activeImageClipIds = new Set<string>();
+
     tracks.forEach(track => {
       track.clips.forEach((clip: any) => {
         if (clip.asset?.type === 'video') {
-          activeClipIds.add(clip.id);
+          activeVideoClipIds.add(clip.id);
+        } else if (clip.asset?.type === 'image') {
+          activeImageClipIds.add(clip.id);
         }
       });
     });
 
     // Remove video elements for clips that no longer exist
     videoElementsRef.current.forEach((videoElement, clipId) => {
-      if (!activeClipIds.has(clipId)) {
+      if (!activeVideoClipIds.has(clipId)) {
         videoElement.pause();
         videoElement.src = '';
         videoElement.load(); // Release resources
         videoElementsRef.current.delete(clipId);
+      }
+    });
+
+    // Remove image elements for clips that no longer exist
+    imageElementsRef.current.forEach((imageElement, clipId) => {
+      if (!activeImageClipIds.has(clipId)) {
+        imageElement.src = '';
+        imageElementsRef.current.delete(clipId);
       }
     });
   }, [tracks]);
@@ -328,6 +347,11 @@ export function VideoPreview() {
         videoElement.load();
       });
       videoElementsRef.current.clear();
+
+      imageElementsRef.current.forEach((imageElement) => {
+        imageElement.src = '';
+      });
+      imageElementsRef.current.clear();
     };
   }, []);
 
