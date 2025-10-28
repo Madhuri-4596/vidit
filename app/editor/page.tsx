@@ -135,8 +135,66 @@ export default function EditorPage() {
             Save
           </button>
           <button
-            onClick={() => {
-              alert("Export will render your timeline to a video file.\n\nNote: Full export requires server-side processing.\n\nFor now, use screen recording to capture your preview!");
+            onClick={async () => {
+              if (confirm("Export your video? This will play through your timeline and record it to a video file.")) {
+                try {
+                  // Get the canvas element from video preview
+                  const canvas = document.querySelector('canvas');
+                  if (!canvas) {
+                    alert("Canvas not found!");
+                    return;
+                  }
+
+                  // Create media stream from canvas
+                  const stream = canvas.captureStream(30); // 30 fps
+                  const mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'video/webm;codecs=vp9',
+                    videoBitsPerSecond: 5000000, // 5 Mbps
+                  });
+
+                  const chunks: Blob[] = [];
+                  mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                      chunks.push(e.data);
+                    }
+                  };
+
+                  mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${currentProject?.name || 'video'}-${Date.now()}.webm`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showToast("✅ Video exported successfully!");
+                  };
+
+                  // Start recording
+                  mediaRecorder.start();
+                  showToast("🎬 Recording started...");
+
+                  // Play through timeline
+                  const originalTime = useEditorStore.getState().currentTime;
+                  useEditorStore.getState().setCurrentTime(0);
+                  useEditorStore.getState().setIsPlaying(true);
+
+                  // Stop recording when playback ends
+                  const duration = currentProject?.duration || 60;
+                  const checkInterval = setInterval(() => {
+                    const currentTime = useEditorStore.getState().currentTime;
+                    if (currentTime >= duration || !useEditorStore.getState().isPlaying) {
+                      clearInterval(checkInterval);
+                      mediaRecorder.stop();
+                      useEditorStore.getState().setIsPlaying(false);
+                      useEditorStore.getState().setCurrentTime(originalTime);
+                    }
+                  }, 100);
+                } catch (err) {
+                  console.error("Export error:", err);
+                  alert("Export failed: " + (err as Error).message);
+                }
+              }
             }}
             className="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 rounded transition-colors"
           >

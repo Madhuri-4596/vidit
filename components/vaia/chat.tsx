@@ -34,12 +34,28 @@ export function VaiaChat() {
       });
 
       const data = await response.json();
-      addMessage({ role: "assistant", content: data.message });
+
+      if (!response.ok) {
+        // Handle API errors
+        if (response.status === 503) {
+          addMessage({
+            role: "assistant",
+            content: "⚠️ Vaia AI is not configured yet. The OpenAI API key needs to be added to environment variables.",
+          });
+        } else {
+          addMessage({
+            role: "assistant",
+            content: `Error: ${data.error || "Something went wrong. Please try again."}`,
+          });
+        }
+      } else {
+        addMessage({ role: "assistant", content: data.message });
+      }
     } catch (error) {
       console.error("Chat error:", error);
       addMessage({
         role: "assistant",
-        content: "Sorry, I encountered an error. Please try again.",
+        content: "Sorry, I encountered a network error. Please check your connection and try again.",
       });
     } finally {
       setIsLoading(false);

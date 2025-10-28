@@ -65,6 +65,87 @@ export function VideoPreview() {
             // Calculate the time within the clip
             const clipTime = currentTime - clip.startTime + (clip.trimStart || 0);
 
+            // Calculate transition opacity and transformations
+            const clipTransition = (clip as any).transition;
+            let transitionAlpha = 1;
+            let transitionTransform = { x: 0, y: 0, scale: 1 };
+
+            if (clipTransition) {
+              // Fade in
+              if (clipTransition.in.type !== "none") {
+                const fadeInDuration = clipTransition.in.duration;
+                if (clipTime < fadeInDuration) {
+                  const progress = clipTime / fadeInDuration;
+
+                  if (clipTransition.in.type === "fade") {
+                    transitionAlpha = progress;
+                  } else if (clipTransition.in.type === "slide-left") {
+                    transitionTransform.x = (1 - progress) * width;
+                  } else if (clipTransition.in.type === "slide-right") {
+                    transitionTransform.x = -(1 - progress) * width;
+                  } else if (clipTransition.in.type === "slide-up") {
+                    transitionTransform.y = (1 - progress) * height;
+                  } else if (clipTransition.in.type === "slide-down") {
+                    transitionTransform.y = -(1 - progress) * height;
+                  } else if (clipTransition.in.type === "zoom") {
+                    transitionTransform.scale = progress;
+                    transitionAlpha = progress;
+                  }
+                }
+              }
+
+              // Fade out
+              if (clipTransition.out.type !== "none") {
+                const effectiveDuration = clip.duration - (clip.trimStart || 0) - (clip.trimEnd || 0);
+                const fadeOutDuration = clipTransition.out.duration;
+                const timeUntilEnd = effectiveDuration - clipTime;
+
+                if (timeUntilEnd < fadeOutDuration) {
+                  const progress = timeUntilEnd / fadeOutDuration;
+
+                  if (clipTransition.out.type === "fade") {
+                    transitionAlpha = Math.min(transitionAlpha, progress);
+                  } else if (clipTransition.out.type === "slide-left") {
+                    transitionTransform.x = -(1 - progress) * width;
+                  } else if (clipTransition.out.type === "slide-right") {
+                    transitionTransform.x = (1 - progress) * width;
+                  } else if (clipTransition.out.type === "slide-up") {
+                    transitionTransform.y = -(1 - progress) * height;
+                  } else if (clipTransition.out.type === "slide-down") {
+                    transitionTransform.y = (1 - progress) * height;
+                  } else if (clipTransition.out.type === "zoom") {
+                    transitionTransform.scale = progress;
+                    transitionAlpha = Math.min(transitionAlpha, progress);
+                  }
+                }
+              }
+            }
+
+            // Save canvas state
+            ctx.save();
+
+            // Apply transition alpha
+            ctx.globalAlpha = transitionAlpha;
+
+            // Apply effects if present
+            const clipEffects = clip.effects;
+            if (clipEffects) {
+              // Build CSS filter string
+              const filters = [];
+              if (clipEffects.blur > 0) filters.push(`blur(${clipEffects.blur}px)`);
+              if (clipEffects.brightness !== 100) filters.push(`brightness(${clipEffects.brightness}%)`);
+              if (clipEffects.contrast !== 100) filters.push(`contrast(${clipEffects.contrast}%)`);
+              if (clipEffects.saturation !== 100) filters.push(`saturate(${clipEffects.saturation}%)`);
+              if (clipEffects.sepia > 0) filters.push(`sepia(${clipEffects.sepia}%)`);
+              if (clipEffects.grayscale > 0) filters.push(`grayscale(${clipEffects.grayscale}%)`);
+
+              if (filters.length > 0) {
+                ctx.filter = filters.join(' ');
+              }
+            } else {
+              ctx.filter = 'none';
+            }
+
             // Try to render actual media if available
             if (clip.asset) {
               // For images, create an image element and draw it
@@ -91,10 +172,10 @@ export function VideoPreview() {
                     try {
                       // Calculate aspect ratio fit
                       const scale = Math.min(width / img.width, height / img.height);
-                      const scaledWidth = img.width * scale;
-                      const scaledHeight = img.height * scale;
-                      const x = (width - scaledWidth) / 2;
-                      const y = (height - scaledHeight) / 2;
+                      const scaledWidth = img.width * scale * transitionTransform.scale;
+                      const scaledHeight = img.height * scale * transitionTransform.scale;
+                      const x = (width - scaledWidth) / 2 + transitionTransform.x;
+                      const y = (height - scaledHeight) / 2 + transitionTransform.y;
 
                       ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
                     } catch (err) {
@@ -136,10 +217,10 @@ export function VideoPreview() {
                   if (videoElement.readyState >= 2) {
                     // Calculate aspect ratio fit
                     const scale = Math.min(width / videoElement.videoWidth, height / videoElement.videoHeight);
-                    const scaledWidth = videoElement.videoWidth * scale;
-                    const scaledHeight = videoElement.videoHeight * scale;
-                    const x = (width - scaledWidth) / 2;
-                    const y = (height - scaledHeight) / 2;
+                    const scaledWidth = videoElement.videoWidth * scale * transitionTransform.scale;
+                    const scaledHeight = videoElement.videoHeight * scale * transitionTransform.scale;
+                    const x = (width - scaledWidth) / 2 + transitionTransform.x;
+                    const y = (height - scaledHeight) / 2 + transitionTransform.y;
 
                     ctx.drawImage(videoElement, x, y, scaledWidth, scaledHeight);
                   } else {
@@ -184,6 +265,9 @@ export function VideoPreview() {
               ctx.font = "16px sans-serif";
               ctx.fillText("No media", 60, 100);
             }
+
+            // Restore canvas state (effects and alpha)
+            ctx.restore();
           }
         }
       }

@@ -69,35 +69,50 @@ export default function HomePage() {
 
         {/* Features */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-          <div className="p-6 bg-gray-900 border border-gray-800 rounded-lg">
-            <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center mb-4 text-2xl">
+          <Link
+            href="/editor"
+            className="p-6 bg-gray-900 border border-gray-800 rounded-lg hover:border-purple-500 hover:bg-gray-850 transition-all cursor-pointer group"
+          >
+            <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center mb-4 text-2xl group-hover:bg-purple-600/30 transition-colors">
               📹
             </div>
-            <h3 className="text-lg font-semibold mb-2">Vitor Editor</h3>
+            <h3 className="text-lg font-semibold mb-2 group-hover:text-purple-400 transition-colors">
+              Vitor Editor
+            </h3>
             <p className="text-gray-400 text-sm">
               Professional multi-track timeline with frame-by-frame precision editing
             </p>
-          </div>
+          </Link>
 
-          <div className="p-6 bg-gray-900 border border-gray-800 rounded-lg">
-            <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center mb-4 text-2xl">
+          <Link
+            href="/editor"
+            className="p-6 bg-gray-900 border border-gray-800 rounded-lg hover:border-purple-500 hover:bg-gray-850 transition-all cursor-pointer group"
+          >
+            <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center mb-4 text-2xl group-hover:bg-purple-600/30 transition-colors">
               🤖
             </div>
-            <h3 className="text-lg font-semibold mb-2">Vaia AI Assistant</h3>
+            <h3 className="text-lg font-semibold mb-2 group-hover:text-purple-400 transition-colors">
+              Vaia AI Assistant
+            </h3>
             <p className="text-gray-400 text-sm">
               AI-powered chatbot to help with scripts, ideas, and editing suggestions
             </p>
-          </div>
+          </Link>
 
-          <div className="p-6 bg-gray-900 border border-gray-800 rounded-lg">
-            <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center mb-4 text-2xl">
+          <Link
+            href="/editor"
+            className="p-6 bg-gray-900 border border-gray-800 rounded-lg hover:border-purple-500 hover:bg-gray-850 transition-all cursor-pointer group"
+          >
+            <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center mb-4 text-2xl group-hover:bg-purple-600/30 transition-colors">
               🚀
             </div>
-            <h3 className="text-lg font-semibold mb-2">Vport Publishing</h3>
+            <h3 className="text-lg font-semibold mb-2 group-hover:text-purple-400 transition-colors">
+              Vport Publishing
+            </h3>
             <p className="text-gray-400 text-sm">
               Publish to YouTube, Instagram, TikTok, and more with one click
             </p>
-          </div>
+          </Link>
         </div>
 
         {/* Recent Projects */}

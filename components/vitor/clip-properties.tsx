@@ -1,10 +1,13 @@
 "use client";
 
 import { useEditorStore } from "@/lib/store";
-import { Scissors, Trash2, Copy } from "lucide-react";
+import { Scissors, Trash2, Copy, Sparkles } from "lucide-react";
+import { useState } from "react";
 
 export function ClipProperties() {
-  const { selectedClipId, tracks, updateClip, removeClip } = useEditorStore();
+  const { selectedClipId, tracks, updateClip, removeClip, addClip, setSelectedClipId } = useEditorStore();
+  const [showEffects, setShowEffects] = useState(false);
+  const [showTransitions, setShowTransitions] = useState(false);
 
   // Find the selected clip
   let selectedClip: any = null;
@@ -27,6 +30,22 @@ export function ClipProperties() {
     );
   }
 
+  // Initialize effects if not present
+  const effects = selectedClip.effects || {
+    blur: 0,
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    sepia: 0,
+    grayscale: 0,
+  };
+
+  // Initialize transitions if not present
+  const transition = (selectedClip as any).transition || {
+    in: { type: "none", duration: 0.5 },
+    out: { type: "none", duration: 0.5 },
+  };
+
   const handleTrimStartChange = (value: number) => {
     const newTrimStart = Math.max(0, Math.min(value, selectedClip.duration - 0.1));
     updateClip(selectedClip.id, { trimStart: newTrimStart });
@@ -37,15 +56,94 @@ export function ClipProperties() {
     updateClip(selectedClip.id, { trimEnd: newTrimEnd });
   };
 
+  const handleEffectChange = (effectName: string, value: number) => {
+    const newEffects = { ...effects, [effectName]: value };
+    updateClip(selectedClip.id, { effects: newEffects });
+  };
+
+  const resetEffects = () => {
+    updateClip(selectedClip.id, {
+      effects: {
+        blur: 0,
+        brightness: 100,
+        contrast: 100,
+        saturation: 100,
+        sepia: 0,
+        grayscale: 0,
+      },
+    });
+  };
+
+  const handleTransitionChange = (direction: "in" | "out", type: string) => {
+    const newTransition = {
+      ...transition,
+      [direction]: { ...transition[direction], type },
+    };
+    updateClip(selectedClip.id, { transition: newTransition } as any);
+  };
+
+  const handleTransitionDurationChange = (direction: "in" | "out", duration: number) => {
+    const newTransition = {
+      ...transition,
+      [direction]: { ...transition[direction], duration },
+    };
+    updateClip(selectedClip.id, { transition: newTransition } as any);
+  };
+
   const handleDelete = () => {
     if (confirm(`Delete "${selectedClip.asset?.name || 'this clip'}"?`)) {
       removeClip(selectedClip.id);
     }
   };
 
+  const handleDuplicate = () => {
+    // Create a duplicate of the selected clip
+    const duplicateClip = {
+      ...selectedClip,
+      id: crypto.randomUUID(),
+      startTime: selectedClip.endTime, // Place right after original
+      endTime: selectedClip.endTime + selectedClip.duration,
+    };
+    addClip(selectedTrack.id, duplicateClip);
+    setSelectedClipId(duplicateClip.id);
+  };
+
   const handleSplit = () => {
-    // TODO: Implement split functionality
-    alert("Split functionality coming soon!");
+    const { currentTime } = useEditorStore.getState();
+
+    // Check if playhead is within the selected clip
+    if (currentTime <= selectedClip.startTime || currentTime >= selectedClip.endTime) {
+      alert("Move the playhead inside the clip to split it!");
+      return;
+    }
+
+    // Calculate split point relative to clip start
+    const splitPoint = currentTime - selectedClip.startTime;
+
+    // Create first half clip
+    const firstClip = {
+      ...selectedClip,
+      id: crypto.randomUUID(),
+      endTime: currentTime,
+      duration: splitPoint,
+      trimEnd: selectedClip.trimEnd + (selectedClip.duration - splitPoint),
+    };
+
+    // Create second half clip
+    const secondClip = {
+      ...selectedClip,
+      id: crypto.randomUUID(),
+      startTime: currentTime,
+      trimStart: selectedClip.trimStart + splitPoint,
+    };
+
+    // Remove original and add split clips
+    removeClip(selectedClip.id);
+    addClip(selectedTrack.id, firstClip);
+    addClip(selectedTrack.id, secondClip);
+
+    // Select the first clip
+    setSelectedClipId(firstClip.id);
   };
 
   return (
@@ -94,6 +192,214 @@ export function ClipProperties() {
         </div>
       </div>
 
+      {/* Visual Effects */}
+      <div className="space-y-2 pt-2 border-t border-gray-700">
+        <button
+          onClick={() => setShowEffects(!showEffects)}
+          className="w-full flex items-center justify-between px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            <span>Visual Effects</span>
+          </div>
+          <span className="text-xs">{showEffects ? "▼" : "▶"}</span>
+        </button>
+
+        {showEffects && (
+          <div className="space-y-3 p-3 bg-gray-800/50 rounded">
+            {/* Blur */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">
+                Blur: {effects.blur}px
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="20"
+                step="1"
+                value={effects.blur}
+                onChange={(e) => handleEffectChange("blur", parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+              />
+            </div>
+
+            {/* Brightness */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">
+                Brightness: {effects.brightness}%
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="200"
+                step="5"
+                value={effects.brightness}
+                onChange={(e) => handleEffectChange("brightness", parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+              />
+            </div>
+
+            {/* Contrast */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">
+                Contrast: {effects.contrast}%
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="200"
+                step="5"
+                value={effects.contrast}
+                onChange={(e) => handleEffectChange("contrast", parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+              />
+            </div>
+
+            {/* Saturation */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">
+                Saturation: {effects.saturation}%
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="200"
+                step="5"
+                value={effects.saturation}
+                onChange={(e) => handleEffectChange("saturation", parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+              />
+            </div>
+
+            {/* Sepia */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">
+                Sepia: {effects.sepia}%
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={effects.sepia}
+                onChange={(e) => handleEffectChange("sepia", parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+              />
+            </div>
+
+            {/* Grayscale */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">
+                Grayscale: {effects.grayscale}%
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={effects.grayscale}
+                onChange={(e) => handleEffectChange("grayscale", parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+              />
+            </div>
+
+            {/* Reset Button */}
+            <button
+              onClick={resetEffects}
+              className="w-full px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded transition-colors"
+            >
+              Reset All Effects
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Transitions */}
+      <div className="space-y-2 pt-2 border-t border-gray-700">
+        <button
+          onClick={() => setShowTransitions(!showTransitions)}
+          className="w-full flex items-center justify-between px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            <span>Transitions</span>
+          </div>
+          <span className="text-xs">{showTransitions ? "▼" : "▶"}</span>
+        </button>
+
+        {showTransitions && (
+          <div className="space-y-3 p-3 bg-gray-800/50 rounded">
+            {/* Fade In */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-2">Fade In</label>
+              <select
+                value={transition.in.type}
+                onChange={(e) => handleTransitionChange("in", e.target.value)}
+                className="w-full px-2 py-1 bg-gray-700 text-white text-xs rounded mb-2"
+              >
+                <option value="none">None</option>
+                <option value="fade">Fade</option>
+                <option value="slide-left">Slide Left</option>
+                <option value="slide-right">Slide Right</option>
+                <option value="slide-up">Slide Up</option>
+                <option value="slide-down">Slide Down</option>
+                <option value="zoom">Zoom</option>
+              </select>
+              {transition.in.type !== "none" && (
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">
+                    Duration: {transition.in.duration.toFixed(1)}s
+                  </label>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="2"
+                    step="0.1"
+                    value={transition.in.duration}
+                    onChange={(e) => handleTransitionDurationChange("in", parseFloat(e.target.value))}
+                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Fade Out */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-2">Fade Out</label>
+              <select
+                value={transition.out.type}
+                onChange={(e) => handleTransitionChange("out", e.target.value)}
+                className="w-full px-2 py-1 bg-gray-700 text-white text-xs rounded mb-2"
+              >
+                <option value="none">None</option>
+                <option value="fade">Fade</option>
+                <option value="slide-left">Slide Left</option>
+                <option value="slide-right">Slide Right</option>
+                <option value="slide-up">Slide Up</option>
+                <option value="slide-down">Slide Down</option>
+                <option value="zoom">Zoom</option>
+              </select>
+              {transition.out.type !== "none" && (
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">
+                    Duration: {transition.out.duration.toFixed(1)}s
+                  </label>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="2"
+                    step="0.1"
+                    value={transition.out.duration}
+                    onChange={(e) => handleTransitionDurationChange("out", parseFloat(e.target.value))}
+                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Actions */}
       <div className="space-y-2 pt-2 border-t border-gray-700">
         <button
@@ -102,6 +408,14 @@ export function ClipProperties() {
         >
           <Scissors className="w-4 h-4" />
           Split Clip
+        </button>
+
+        <button
+          onClick={handleDuplicate}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition-colors"
+        >
+          <Copy className="w-4 h-4" />
+          Duplicate Clip
         </button>
 
         <button
