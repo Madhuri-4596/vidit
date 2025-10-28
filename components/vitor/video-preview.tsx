@@ -52,6 +52,14 @@ export function VideoPreview() {
       ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, width, height);
 
+      // Debug: Log render info
+      if (tracks.length > 0) {
+        const totalClips = tracks.reduce((sum, t) => sum + t.clips.length, 0);
+        if (totalClips > 0 && currentTime === 0) {
+          console.log(`🎬 Rendering ${tracks.length} tracks with ${totalClips} clips at time ${currentTime.toFixed(2)}s`);
+        }
+      }
+
       // Render video clips at current time - process in reverse order so top tracks render last
       for (let i = 0; i < tracks.length; i++) {
         const track = tracks[i];
@@ -61,6 +69,9 @@ export function VideoPreview() {
           if (isCancelled) break;
 
           if (currentTime >= clip.startTime && currentTime <= clip.endTime) {
+            if (currentTime === 0) {
+              console.log(`📍 Clip active: ${clip.asset?.name}, time: ${clip.startTime}-${clip.endTime}, has asset: ${!!clip.asset}`);
+            }
 
             // Calculate the time within the clip
             const clipTime = currentTime - clip.startTime + (clip.trimStart || 0);
@@ -70,9 +81,9 @@ export function VideoPreview() {
             let transitionAlpha = 1;
             let transitionTransform = { x: 0, y: 0, scale: 1 };
 
-            if (clipTransition && clipTransition.in && clipTransition.out) {
+            if (clipTransition) {
               // Fade in
-              if (clipTransition.in.type && clipTransition.in.type !== "none") {
+              if (clipTransition.in && clipTransition.in.type && clipTransition.in.type !== "none") {
                 const fadeInDuration = clipTransition.in.duration || 0.5;
                 if (clipTime < fadeInDuration) {
                   const progress = Math.max(0, Math.min(1, clipTime / fadeInDuration));
@@ -96,7 +107,7 @@ export function VideoPreview() {
               }
 
               // Fade out
-              if (clipTransition.out.type && clipTransition.out.type !== "none") {
+              if (clipTransition.out && clipTransition.out.type && clipTransition.out.type !== "none") {
                 const effectiveDuration = clip.duration - (clip.trimStart || 0) - (clip.trimEnd || 0);
                 const fadeOutDuration = clipTransition.out.duration || 0.5;
                 const timeUntilEnd = effectiveDuration - clipTime;
