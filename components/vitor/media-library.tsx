@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useEditorStore } from "@/lib/store";
-import { Upload, Video, Music, Image as ImageIcon, Type, Search } from "lucide-react";
+import { Upload, Video, Music, Image as ImageIcon, Type, Search, Loader2 } from "lucide-react";
 
 export function MediaLibrary() {
   const { assets, addAsset } = useEditorStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "video" | "audio" | "image">("all");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
 
   // Add demo assets on first load
   useEffect(() => {
@@ -55,80 +57,122 @@ export function MediaLibrary() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
-    for (const file of Array.from(files)) {
-      // In production, you would upload to S3/R2 here
-      const url = URL.createObjectURL(file);
+    setIsUploading(true);
+    const fileArray = Array.from(files);
 
-      const type = file.type.startsWith("video/")
-        ? "video"
-        : file.type.startsWith("audio/")
-        ? "audio"
-        : file.type.startsWith("image/")
-        ? "image"
-        : "video";
+    try {
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
+        setUploadProgress(`Processing ${i + 1}/${fileArray.length}: ${file.name}`);
 
-      // Extract duration for video/audio files
-      let duration: number | undefined = undefined;
-      let thumbnail: string | undefined = type === "image" ? url : undefined;
+        console.log('Uploading file:', file.name, 'Type:', file.type, 'Size:', file.size);
 
-      if (type === "video" || type === "audio") {
-        try {
-          const mediaElement = document.createElement(type) as HTMLVideoElement | HTMLAudioElement;
-          mediaElement.src = url;
-          mediaElement.preload = 'metadata';
+        // In production, you would upload to S3/R2 here
+        const url = URL.createObjectURL(file);
 
-          await new Promise<void>((resolve, reject) => {
-            mediaElement.onloadedmetadata = () => {
-              duration = mediaElement.duration;
+        const type = file.type.startsWith("video/")
+          ? "video"
+          : file.type.startsWith("audio/")
+          ? "audio"
+          : file.type.startsWith("image/")
+          ? "image"
+          : "video";
 
-              // For videos, capture a thumbnail
-              if (type === "video" && mediaElement instanceof HTMLVideoElement) {
-                mediaElement.currentTime = Math.min(1, duration / 2); // Seek to middle or 1 second
-                mediaElement.onseeked = () => {
-                  try {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = mediaElement.videoWidth;
-                    canvas.height = mediaElement.videoHeight;
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) {
-                      ctx.drawImage(mediaElement, 0, 0);
-                      thumbnail = canvas.toDataURL();
+        // Extract duration for video/audio files
+        let duration: number | undefined = undefined;
+        let thumbnail: string | undefined = type === "image" ? url : undefined;
+
+        if (type === "video" || type === "audio") {
+          try {
+            const mediaElement = document.createElement(type) as HTMLVideoElement | HTMLAudioElement;
+            mediaElement.src = url;
+            mediaElement.preload = 'metadata';
+
+            await new Promise<void>((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                console.warn('Metadata loading timeout for:', file.name);
+                resolve(); // Continue even if timeout
+              }, 10000); // 10 second timeout
+
+              mediaElement.onloadedmetadata = () => {
+                clearTimeout(timeout);
+                duration = mediaElement.duration;
+                console.log('Media duration loaded:', duration, 'seconds');
+
+                // For videos, capture a thumbnail
+                if (type === "video" && mediaElement instanceof HTMLVideoElement) {
+                  const seekTime = Math.min(1, duration / 2);
+                  mediaElement.currentTime = seekTime;
+
+                  const seekTimeout = setTimeout(() => {
+                    console.warn('Seek timeout for thumbnail');
+                    resolve();
+                  }, 5000);
+
+                  mediaElement.onseeked = () => {
+                    clearTimeout(seekTimeout);
+                    try {
+                      const canvas = document.createElement('canvas');
+                      canvas.width = mediaElement.videoWidth;
+                      canvas.height = mediaElement.videoHeight;
+                      const ctx = canvas.getContext('2d');
+                      if (ctx) {
+                        ctx.drawImage(mediaElement, 0, 0);
+                        thumbnail = canvas.toDataURL();
+                        console.log('Thumbnail generated successfully');
+                      }
+                    } catch (err) {
+                      console.error("Error generating thumbnail:", err);
                     }
-                  } catch (err) {
-                    console.error("Error generating thumbnail:", err);
-                  }
+                    resolve();
+                  };
+
+                  mediaElement.onerror = () => {
+                    clearTimeout(seekTimeout);
+                    console.error("Seek error for thumbnail");
+                    resolve();
+                  };
+                } else {
                   resolve();
-                };
-              } else {
-                resolve();
-              }
-            };
-            mediaElement.onerror = () => {
-              console.error("Error loading media metadata");
-              resolve(); // Continue even if metadata loading fails
-            };
-          });
-        } catch (err) {
-          console.error("Error extracting media metadata:", err);
+                }
+              };
+
+              mediaElement.onerror = (err) => {
+                clearTimeout(timeout);
+                console.error("Error loading media metadata:", err);
+                resolve(); // Continue even if metadata loading fails
+              };
+            });
+          } catch (err) {
+            console.error("Error extracting media metadata:", err);
+          }
         }
+
+        const asset = {
+          id: crypto.randomUUID(),
+          name: file.name,
+          type: type as any,
+          url,
+          size: file.size,
+          thumbnail,
+          duration,
+          metadata: {
+            mimeType: file.type,
+          },
+        };
+
+        console.log('Adding asset:', asset);
+        addAsset(asset);
       }
-
-      const asset = {
-        id: crypto.randomUUID(),
-        name: file.name,
-        type: type as any,
-        url,
-        size: file.size,
-        thumbnail,
-        duration,
-        metadata: {
-          mimeType: file.type,
-        },
-      };
-
-      addAsset(asset);
+    } catch (err) {
+      console.error('Upload error:', err);
+    } finally {
+      setIsUploading(false);
+      setUploadProgress("");
+      // Reset file input so same file can be uploaded again
+      e.target.value = "";
     }
   };
 
@@ -143,17 +187,34 @@ export function MediaLibrary() {
         <h2 className="text-lg font-semibold text-white mb-3">Media Library</h2>
 
         {/* Upload Button */}
-        <label className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded cursor-pointer transition-colors">
-          <Upload className="w-4 h-4" />
-          <span>Upload Media</span>
+        <label className={`flex items-center justify-center gap-2 px-4 py-2 text-white rounded transition-colors ${
+          isUploading
+            ? "bg-gray-600 cursor-wait"
+            : "bg-purple-600 hover:bg-purple-700 cursor-pointer"
+        }`}>
+          {isUploading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Uploading...</span>
+            </>
+          ) : (
+            <>
+              <Upload className="w-4 h-4" />
+              <span>Upload Media</span>
+            </>
+          )}
           <input
             type="file"
             multiple
             accept="video/*,audio/*,image/*"
             onChange={handleFileUpload}
             className="hidden"
+            disabled={isUploading}
           />
         </label>
+        {uploadProgress && (
+          <p className="text-xs text-gray-400 mt-2">{uploadProgress}</p>
+        )}
       </div>
 
       {/* Search */}

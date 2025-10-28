@@ -14,6 +14,8 @@ export function SimpleTimeline() {
 
   const {
     tracks,
+    addTrack,
+    addClip,
     currentTime,
     setCurrentTime,
     zoom,
@@ -48,6 +50,73 @@ export function SimpleTimeline() {
     const clickX = e.clientX - rect.left;
     const newTime = clickX / pixelsPerSecond;
     setCurrentTime(Math.max(0, Math.min(newTime, duration)));
+  };
+
+  const handleDrop = (e: React.DragEvent, trackId?: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    console.log('Drop event triggered on timeline');
+
+    const assetData = e.dataTransfer.getData("asset");
+    if (!assetData) {
+      console.warn('No asset data in drag event');
+      return;
+    }
+
+    console.log('Asset data received:', assetData);
+
+    try {
+      const asset = JSON.parse(assetData);
+      console.log('Parsed asset:', asset);
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const dropX = e.clientX - rect.left;
+      const dropTime = Math.max(0, dropX / pixelsPerSecond);
+
+      console.log('Drop position:', { dropX, dropTime, pixelsPerSecond });
+
+      // If no track specified or track doesn't exist, create a new track
+      let targetTrackId = trackId;
+      if (!targetTrackId || !tracks.find((t) => t.id === targetTrackId)) {
+        const newTrack = {
+          id: crypto.randomUUID(),
+          type: asset.type as "video" | "audio" | "text" | "overlay",
+          order: tracks.length,
+          locked: false,
+          visible: true,
+          clips: [],
+        };
+        console.log('Creating new track:', newTrack);
+        addTrack(newTrack);
+        targetTrackId = newTrack.id;
+      }
+
+      // Create clip from asset
+      const clipDuration = asset.duration || 5; // Default 5 seconds if no duration
+      const clip = {
+        id: crypto.randomUUID(),
+        trackId: targetTrackId,
+        assetId: asset.id,
+        startTime: dropTime,
+        endTime: dropTime + clipDuration,
+        duration: clipDuration,
+        trimStart: 0,
+        trimEnd: 0,
+        asset: asset, // Store asset reference for rendering
+      };
+
+      console.log('Creating clip:', clip);
+      addClip(targetTrackId, clip);
+      console.log('Clip added successfully. Current tracks:', tracks.length + 1);
+    } catch (err) {
+      console.error('Error in handleDrop:', err);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
   };
 
   // Generate time markers
@@ -94,7 +163,9 @@ export function SimpleTimeline() {
       <div
         className="relative"
         onClick={handleTimelineClick}
-        style={{ width: totalWidth }}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        style={{ width: totalWidth, minHeight: tracks.length > 0 ? "auto" : "200px" }}
       >
         {/* Vertical grid lines */}
         {timeMarkers.map((time) => (
@@ -113,8 +184,9 @@ export function SimpleTimeline() {
 
         {/* Tracks */}
         {tracks.length === 0 ? (
-          <div className="flex items-center justify-center h-40 text-gray-500">
-            No tracks yet. Add media to get started.
+          <div className="flex flex-col items-center justify-center h-40 text-gray-500 gap-2">
+            <p className="text-lg">📹 Drop media here to start editing</p>
+            <p className="text-sm text-gray-600">Drag videos, images, or audio from the Media Library</p>
           </div>
         ) : (
           tracks.map((track, trackIndex) => {
@@ -169,7 +241,7 @@ export function SimpleTimeline() {
                       }}
                     >
                       <div className="px-2 py-1 text-xs text-white truncate">
-                        {clip.name || "Clip"}
+                        {(clip as any).asset?.name || `Clip ${clip.id.slice(0, 6)}`}
                       </div>
                     </div>
                   );
