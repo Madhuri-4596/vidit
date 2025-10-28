@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useEditorStore } from "@/lib/store";
 import {
   Youtube,
   Instagram,
@@ -22,6 +23,7 @@ const PLATFORMS = [
 ];
 
 export function SocialPublishing() {
+  const { currentProject, currentTime, setCurrentTime, setIsPlaying } = useEditorStore();
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -62,8 +64,11 @@ export function SocialPublishing() {
         return;
       }
 
-      // Get current project info
-      const { currentProject, currentTime, setCurrentTime, setIsPlaying } = (window as any).editorStore || {};
+      if (!currentProject) {
+        alert("No project loaded. Please add some media to your timeline first.");
+        setIsPublishing(false);
+        return;
+      }
 
       setPublishStatus("🎥 Recording video...");
 
@@ -96,21 +101,22 @@ export function SocialPublishing() {
         mediaRecorder.start();
 
         // Play through timeline
-        const originalTime = currentTime || 0;
-        if (setCurrentTime) setCurrentTime(0);
-        if (setIsPlaying) setIsPlaying(true);
+        const originalTime = currentTime;
+        setCurrentTime(0);
+        setIsPlaying(true);
 
         // Stop recording when playback ends
-        const duration = currentProject?.duration || 60;
+        const duration = currentProject.duration || 60;
+        const storeInstance = useEditorStore.getState();
         const checkInterval = setInterval(() => {
-          const ct = (window as any).editorStore?.currentTime || 0;
-          const playing = (window as any).editorStore?.isPlaying;
+          const ct = storeInstance.currentTime;
+          const playing = storeInstance.isPlaying;
 
           if (ct >= duration || !playing) {
             clearInterval(checkInterval);
             mediaRecorder.stop();
-            if (setIsPlaying) setIsPlaying(false);
-            if (setCurrentTime) setCurrentTime(originalTime);
+            setIsPlaying(false);
+            setCurrentTime(originalTime);
           }
         }, 100);
 
