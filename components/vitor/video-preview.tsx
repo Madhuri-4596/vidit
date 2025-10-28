@@ -90,23 +90,54 @@ export function VideoPreview() {
             const clipTime = currentTime - clip.startTime + (clip.trimStart || 0);
 
             // Calculate transition opacity and transformations
-            const clipTransition = (clip as any).transition;
             let transitionAlpha = 1;
             let transitionTransform = { x: 0, y: 0, scale: 1 };
 
-            if (clipTransition) {
-              console.log(`🎬 Transition data:`, clipTransition);
-              // Fade in
-              if (clipTransition.in && clipTransition.in.type && clipTransition.in.type !== "none") {
-                const fadeInDuration = clipTransition.in.duration || 0.5;
-                console.log(`⬇️ Fade in: type=${clipTransition.in.type}, duration=${fadeInDuration}, clipTime=${clipTime.toFixed(2)}`);
-                if (clipTime < fadeInDuration) {
-                  const progress = Math.max(0, Math.min(1, clipTime / fadeInDuration));
-                  console.log(`📈 Fade in progress: ${(progress * 100).toFixed(0)}%`);
+            // Check for transition segments (time-based transitions)
+            const clipTransitionSegments = (clip as any).transitionSegments;
+            let activeTransition: any = null;
 
-                  if (clipTransition.in.type === "fade") {
-                    transitionAlpha = progress;
-                    console.log(`🌫️ Setting alpha to ${transitionAlpha.toFixed(2)}`);
+            if (clipTransitionSegments && clipTransitionSegments.length > 0) {
+              // Find active transition segment for current time
+              activeTransition = clipTransitionSegments.find(
+                (seg: any) =>
+                  clipTime >= seg.startTime &&
+                  clipTime <= (seg.startTime + seg.duration)
+              );
+            }
+
+            // Apply active transition from segments
+            if (activeTransition) {
+              const transitionProgress = (clipTime - activeTransition.startTime) / activeTransition.duration;
+              const progress = Math.max(0, Math.min(1, transitionProgress));
+
+              if (activeTransition.type === "fade") {
+                transitionAlpha = progress;
+              } else if (activeTransition.type === "slide-left") {
+                transitionTransform.x = (1 - progress) * width;
+              } else if (activeTransition.type === "slide-right") {
+                transitionTransform.x = -(1 - progress) * width;
+              } else if (activeTransition.type === "slide-up") {
+                transitionTransform.y = (1 - progress) * height;
+              } else if (activeTransition.type === "slide-down") {
+                transitionTransform.y = -(1 - progress) * height;
+              } else if (activeTransition.type === "zoom") {
+                transitionTransform.scale = 0.3 + (progress * 0.7);
+                transitionAlpha = progress;
+              }
+            } else {
+              // Fallback to old transition system (fade in/out)
+              const clipTransition = (clip as any).transition;
+
+              if (clipTransition) {
+                // Fade in
+                if (clipTransition.in && clipTransition.in.type && clipTransition.in.type !== "none") {
+                  const fadeInDuration = clipTransition.in.duration || 0.5;
+                  if (clipTime < fadeInDuration) {
+                    const progress = Math.max(0, Math.min(1, clipTime / fadeInDuration));
+
+                    if (clipTransition.in.type === "fade") {
+                      transitionAlpha = progress;
                   } else if (clipTransition.in.type === "slide-left") {
                     transitionTransform.x = (1 - progress) * width;
                   } else if (clipTransition.in.type === "slide-right") {
@@ -148,6 +179,7 @@ export function VideoPreview() {
                     transitionAlpha = Math.min(transitionAlpha, progress);
                   }
                 }
+              }
               }
             }
 

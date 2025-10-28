@@ -9,7 +9,9 @@ export function ClipProperties() {
   const [showEffects, setShowEffects] = useState(false);
   const [showTransitions, setShowTransitions] = useState(false);
   const [showEffectSegments, setShowEffectSegments] = useState(false);
+  const [showTransitionSegments, setShowTransitionSegments] = useState(false);
   const [editingSegmentIndex, setEditingSegmentIndex] = useState<number | null>(null);
+  const [editingTransitionIndex, setEditingTransitionIndex] = useState<number | null>(null);
 
   // Find the selected clip
   let selectedClip: any = null;
@@ -35,6 +37,9 @@ export function ClipProperties() {
   // Initialize effect segments if not present
   const effectSegments = (selectedClip as any).effectSegments || [];
 
+  // Initialize transition segments if not present
+  const transitionSegments = (selectedClip as any).transitionSegments || [];
+
   // Current simple effects (for backward compatibility)
   const effects = selectedClip.effects || {
     blur: 0,
@@ -45,7 +50,7 @@ export function ClipProperties() {
     grayscale: 0,
   };
 
-  // Initialize transitions if not present
+  // Initialize transitions if not present (old style - for backward compatibility)
   const transition = (selectedClip as any).transition || {
     in: { type: "none", duration: 0.5 },
     out: { type: "none", duration: 0.5 },
@@ -126,6 +131,28 @@ export function ClipProperties() {
     if (editingSegmentIndex === index) {
       setEditingSegmentIndex(null);
     }
+  };
+
+  const addTransitionSegment = () => {
+    const newSegment = {
+      id: crypto.randomUUID(),
+      startTime: 0,
+      duration: 1,
+      type: "fade",
+    };
+    const newSegments = [...transitionSegments, newSegment];
+    updateClip(selectedClip.id, { transitionSegments: newSegments } as any);
+  };
+
+  const updateTransitionSegment = (index: number, updates: any) => {
+    const newSegments = [...transitionSegments];
+    newSegments[index] = { ...newSegments[index], ...updates };
+    updateClip(selectedClip.id, { transitionSegments: newSegments } as any);
+  };
+
+  const deleteTransitionSegment = (index: number) => {
+    const newSegments = transitionSegments.filter((_: any, i: number) => i !== index);
+    updateClip(selectedClip.id, { transitionSegments: newSegments } as any);
   };
 
   const handleDelete = () => {
@@ -652,6 +679,114 @@ export function ClipProperties() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Transition Timeline (Time-based transitions) */}
+      <div className="space-y-2 pt-2 border-t border-gray-700">
+        <button
+          onClick={() => setShowTransitionSegments(!showTransitionSegments)}
+          className="w-full flex items-center justify-between px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            <span>Transition Timeline</span>
+          </div>
+          <span className="text-xs">{showTransitionSegments ? "▼" : "▶"}</span>
+        </button>
+
+        {showTransitionSegments && (
+          <div className="space-y-2 p-3 bg-gray-800/50 rounded">
+            <p className="text-xs text-gray-400 mb-2">
+              Add transitions at specific times
+            </p>
+
+            {/* Add Segment Button */}
+            <button
+              onClick={addTransitionSegment}
+              className="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors"
+            >
+              + Add Transition
+            </button>
+
+            {/* List of transition segments */}
+            {transitionSegments.map((segment: any, index: number) => (
+              <div key={segment.id} className="bg-gray-900 p-3 rounded space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-purple-400">
+                    Transition {index + 1}
+                  </span>
+                  <button
+                    onClick={() => deleteTransitionSegment(index)}
+                    className="text-xs text-red-400 hover:text-red-300"
+                  >
+                    Delete
+                  </button>
+                </div>
+
+                {/* Start Time */}
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">
+                    Start Time (s)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={selectedClip.duration}
+                    step="0.1"
+                    value={segment.startTime}
+                    onChange={(e) =>
+                      updateTransitionSegment(index, {
+                        startTime: parseFloat(e.target.value),
+                      })
+                    }
+                    className="w-full px-2 py-1 bg-gray-800 text-white text-xs rounded"
+                  />
+                </div>
+
+                {/* Duration */}
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">
+                    Duration (s)
+                  </label>
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="5"
+                    step="0.1"
+                    value={segment.duration}
+                    onChange={(e) =>
+                      updateTransitionSegment(index, {
+                        duration: parseFloat(e.target.value),
+                      })
+                    }
+                    className="w-full px-2 py-1 bg-gray-800 text-white text-xs rounded"
+                  />
+                </div>
+
+                {/* Transition Type */}
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">
+                    Transition Type
+                  </label>
+                  <select
+                    value={segment.type}
+                    onChange={(e) =>
+                      updateTransitionSegment(index, { type: e.target.value })
+                    }
+                    className="w-full px-2 py-1 bg-gray-700 text-white text-xs rounded"
+                  >
+                    <option value="fade">Fade</option>
+                    <option value="slide-left">Slide Left</option>
+                    <option value="slide-right">Slide Right</option>
+                    <option value="slide-up">Slide Up</option>
+                    <option value="slide-down">Slide Down</option>
+                    <option value="zoom">Zoom</option>
+                  </select>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
